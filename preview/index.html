@@ -77,17 +77,24 @@
   .badge.on { display:flex; }
 
   #dpad { display:grid; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(2,52px); gap:6px; }
-  .dir {
-    border-radius:16px; border:1px solid rgba(255,255,255,.14); cursor:pointer;
-    background:linear-gradient(160deg,rgba(48,52,88,.92),rgba(22,24,46,.92));
-    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 12px rgba(0,0,0,.5);
+  .btn-col { display:flex; flex-direction:column; gap:10px; align-items:center; }
+  #joy {
+    width:128px; height:128px; border-radius:50%; position:relative; touch-action:none;
+    background:radial-gradient(circle at 50% 40%, rgba(56,60,100,.55), rgba(16,18,36,.75));
+    border:1px solid rgba(255,255,255,.14); box-shadow:0 6px 18px rgba(0,0,0,.5);
   }
-  .dir svg { width:22px; height:22px; }
-  .dir:active, .dir.held { background:linear-gradient(160deg,#ff9d3f,#ff5e62); }
-  .dir.up   { grid-column:2; grid-row:1; }
-  .dir.left { grid-column:1; grid-row:2; }
-  .dir.down { grid-column:2; grid-row:2; }
-  .dir.right{ grid-column:3; grid-row:2; }
+  #joy-knob {
+    position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
+    border-radius:50%; pointer-events:none;
+    background:linear-gradient(160deg,#3a3f6b,#1d2040);
+    border:1px solid rgba(255,255,255,.22); box-shadow:0 4px 12px rgba(0,0,0,.6);
+  }
+  #joy.active #joy-knob { background:linear-gradient(160deg,#ff9d3f,#ff5e62); }
+  #bomb-count {
+    position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; border-radius:9px;
+    background:#ffd24a; color:#321; font-size:11px; font-weight:800;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
 
   .round-btn.leave { background:linear-gradient(160deg,#ff5e62,#b3232f); }
 
@@ -230,15 +237,15 @@
   <div id="toast"></div>
 
   <div id="controls">
-    <button class="round-btn" id="btn-upg"><span class="badge" id="upg-badge">!</span></button>
-    <button class="round-btn" id="btn-social"><span class="badge" id="soc-badge">!</span></button>
-    <div id="dpad">
-      <button class="dir up" data-d="0,-1"></button>
-      <button class="dir left" data-d="-1,0"></button>
-      <button class="dir down" data-d="0,1"></button>
-      <button class="dir right" data-d="1,0"></button>
+    <div class="btn-col">
+      <button class="round-btn" id="btn-upg"><span class="badge" id="upg-badge">!</span></button>
+      <button class="round-btn" id="btn-bomb"><span id="bomb-count">0</span></button>
     </div>
-    <button class="round-btn" id="btn-shop"></button>
+    <div id="joy"><div id="joy-knob"></div></div>
+    <div class="btn-col">
+      <button class="round-btn" id="btn-social"><span class="badge" id="soc-badge">!</span></button>
+      <button class="round-btn" id="btn-shop"></button>
+    </div>
   </div>
 
   <div id="modal"><div id="modal-card"></div></div>
@@ -321,24 +328,43 @@ const BAL={
  oreScale:d=>1+d/30,
  boostDur:4*3600, frenzyDur:60,
  relicBonus:0.20, prestigeDepth:300,
- freeGems:25, freeGemsCd:900,
+ freeGems:10, freeGemsCd:1800,
  starterWindow:48*3600,
+ shieldCost:50, shieldCd:2*3600,   // shields are temporary: max 1, cooldown after it breaks
+ decoyCost:20, decoyMax:3,         // each decoy halves one incoming raid's loss
+ bombCost:12, bombMax:5,           // bombs blast a 3x3 area, no energy cost
 };
+
+// Cosmetic drill skins — the main gem sink.
+const SKINS=[
+ {id:"default", name:"Rusty Rig",        cost:0,    top:"#ffb14a", bot:"#e2641f", glow:null},
+ {id:"emerald", name:"Emerald Borer",    cost:120,  top:"#7df0b2", bot:"#1ca35a", glow:"#3ddc84"},
+ {id:"sapphire",name:"Sapphire Striker", cost:250,  top:"#7aa8ff", bot:"#2a64d8", glow:"#4d79ff"},
+ {id:"magma",   name:"Magma Crawler",    cost:450,  top:"#ff8a5c", bot:"#c2231f", glow:"#ff5e62"},
+ {id:"void",    name:"Void Driller",     cost:800,  top:"#9b6bff", bot:"#3d1d78", glow:"#cf9bff"},
+ {id:"gold",    name:"Golden Excavator", cost:1500, top:"#ffe27a", bot:"#d99a1f", glow:"#ffd24a"},
+];
 
 /* =================== State =================== */
 let S={
- cash:0, gems:30, energy:100,
+ cash:0, gems:10, energy:100,
  up:{power:1,tank:1,regen:1,robo:0},
  bestDepth:0, bestRunDepth:0, relics:0, prestiges:0,
  boostUntil:0, frenzyUntil:0, freeGemsAt:0,
  perm2x:false, removeAds:false, starterBought:false,
  milestone:0, lastSeen:Date.now(), firstLaunch:Date.now(),
  daily:{last:0,streak:0},
- shields:1, raidTickets:3, ticketAt:nowS(), raidsWon:0,
+ shields:0, shieldCdUntil:0, decoys:0, bombs:1,
+ raidTickets:3, ticketAt:nowS(), raidsWon:0,
+ skins:["default"], skin:"default",
  feed:[], friends:[{name:"Maya",seed:9117},{name:"Tom",seed:4203}],
 };
 try{ const raw=JSON.parse(localStorage.getItem("gm-deep")||"{}");
      S={...S,...raw,up:{...S.up,...(raw.up||{})},daily:{...S.daily,...(raw.daily||{})}}; }catch(e){}
+// migrate older saves to the reworked defense/skin rules
+S.shields=Math.min(S.shields||0,1);
+if(!Array.isArray(S.skins)||!S.skins.length) S.skins=["default"];
+if(!S.skins.includes(S.skin)) S.skin="default";
 const save=()=>{ S.lastSeen=Date.now(); try{localStorage.setItem("gm-deep",JSON.stringify(S));}catch(e){} };
 
 const boostOn=()=>S.boostUntil>nowS();
@@ -582,7 +608,7 @@ function startMove(dx,dy,t){
 const MILES=[25,50,100,150,200,300,400,500,700,1000];
 function checkMilestones(d){
  for(const m of MILES){ if(d>=m&&S.milestone<m){ S.milestone=m;
-   const g=Math.round(5+m/25);
+   const g=Math.max(2,Math.round(2+m/60));
    S.gems+=g; banner(m+"m REACHED!", "+"+g+" gems • richer ores below"); save(); break; } }
 }
 function banner(t,s){
@@ -624,6 +650,15 @@ function costBtn(cost,fn,extra){
  const ok=S.cash>=cost;
  return `<button class="u-btn" ${ok?"":"disabled"} onclick="${fn}">${IC.coin()}${fmt(cost)}</button>`+(extra||"");
 }
+function skinRow(k){
+ const owned=S.skins.includes(k.id), active=S.skin===k.id;
+ const btn= active?`<button class="u-btn" disabled>Equipped</button>`
+  : owned?`<button class="u-btn" onclick="equipSkin('${k.id}')">Equip</button>`
+  : `<button class="u-btn gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
+ const swatch=`<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(${k.top},${k.bot});box-shadow:0 0 10px ${k.glow||"transparent"}"></div>`;
+ return uRow(swatch,"rgba(255,255,255,.06)",k.name,
+   active?"Equipped":owned?"Owned — tap to equip":"Cosmetic drill paint job",btn);
+}
 
 window.openUpgrades=function(){
  const relicsGain=Math.floor(S.bestRunDepth/BAL.prestigeDepth);
@@ -652,7 +687,6 @@ window.buyUp=function(k){
  const cost=k==="robo"?BAL.roboCost(S.up.robo+1):BAL[k+"Cost"](S.up[k]);
  if(S.cash<cost) return;
  S.cash-=cost; S.up[k]++;
- if(k==="tank") S.energy=maxEnergy();
  save(); openUpgrades();
 };
 window.doPrestige=function(){
@@ -686,8 +720,14 @@ window.openShop=function(){
     `<button class="u-btn gems" ${S.gems>=30?"":"disabled"} onclick="gemRefill()">${IC.gem("#fff")}30</button>`)}
   ${uRow(IC.robot(),"rgba(207,155,255,.13)","2h Robo Time-Warp","Instantly +"+fmt(roboRate()*incomeMult()*7200)+" cash",
     `<button class="u-btn gems" ${S.gems>=50&&S.up.robo?"":"disabled"} onclick="timeWarp()">${IC.gem("#fff")}50</button>`)}
-  ${uRow(IC.shield(),"rgba(122,215,255,.13)","Raid Shield ("+S.shields+"/3)","Blocks one incoming raid",
-    `<button class="u-btn gems" ${S.gems>=25&&S.shields<3?"":"disabled"} onclick="buyShieldShop()">${IC.gem("#fff")}25</button>`)}
+  ${uRow(IC.shield(),"rgba(122,215,255,.13)",S.shields?"Raid Shield (active)":"Raid Shield",shieldSub(),
+    `<button class="u-btn gems" ${canBuyShield()?"":"disabled"} onclick="buyShieldShop()">${IC.gem("#fff")}${BAL.shieldCost}</button>`)}
+  ${uRow(IC.chest("#cf9bff"),"rgba(207,155,255,.13)","Decoy Vault ("+S.decoys+"/"+BAL.decoyMax+")","Halves the loss from one incoming raid",
+    `<button class="u-btn gems" ${S.gems>=BAL.decoyCost&&S.decoys<BAL.decoyMax?"":"disabled"} onclick="buyDecoyShop()">${IC.gem("#fff")}${BAL.decoyCost}</button>`)}
+  ${uRow(IC.bolt("#ff9d3f"),"rgba(255,157,63,.13)","Bomb ("+S.bombs+"/"+BAL.bombMax+")","Blasts a 3×3 area instantly — works in raids too",
+    `<button class="u-btn gems" ${S.gems>=BAL.bombCost&&S.bombs<BAL.bombMax?"":"disabled"} onclick="buyBombShop()">${IC.gem("#fff")}${BAL.bombCost}</button>`)}
+  <div class="sec-label">DRILL SKINS</div>
+  ${SKINS.map(skinRow).join("")}
   <div class="sec-label">GEM PACKS &amp; UPGRADES (IAP)</div>
   ${uRow(IC.gem(),"rgba(255,95,158,.13)","Fistful of Gems","120 gems",`<button class="u-btn iap" onclick="iapGems(120)">$1.99</button>`)}
   ${uRow(IC.gem("#ff8fbe"),"rgba(255,95,158,.13)","Sack of Gems","700 gems • 45% more value",`<button class="u-btn iap" onclick="iapGems(700)">$7.99</button>`)}
@@ -720,11 +760,11 @@ function openRefill(){
 
 function openChest(d){
  const roll=Math.random(); let html,kind,amt;
- if(roll<0.4){ kind="cash"; amt=Math.max(roboRate()*incomeMult()*120, 15*BAL.oreScale(d)*incomeMult()*12);
+ if(roll<0.45){ kind="cash"; amt=Math.max(roboRate()*incomeMult()*120, 15*BAL.oreScale(d)*incomeMult()*12);
    html=`<div class="reward-big">+${fmt(amt)} cash</div>`; }
- else if(roll<0.65){ kind="gems"; amt=5+Math.floor(Math.random()*11);
+ else if(roll<0.6){ kind="gems"; amt=3+Math.floor(Math.random()*6);
    html=`<div class="reward-big">+${amt} gems</div>`; }
- else if(roll<0.85){ kind="energy";
+ else if(roll<0.8){ kind="energy";
    html=`<div class="reward-big">Full Energy!</div>`; }
  else { kind="frenzy";
    html=`<div class="reward-big">×2 FRENZY • 60s</div>`; }
@@ -768,7 +808,7 @@ function openChest(d){
   const yest=new Date(Date.now()-864e5).toDateString();
   S.daily.streak=S.daily.last===yest?S.daily.streak+1:1;
   S.daily.last=today;
-  const g=Math.min(5*S.daily.streak,40); S.gems+=g;
+  const g=Math.min(2*S.daily.streak,14); S.gems+=g;
   setTimeout(()=>banner("DAY "+S.daily.streak+" STREAK","+"+g+" gems • come back tomorrow for more"),1800);
   save();
  }
@@ -846,15 +886,42 @@ function incomingRaid(){
  if(raid||S.cash<600) return;
  const name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
  if(S.shields>0){
-   S.shields--;
+   S.shields=0;
+   S.shieldCdUntil=nowS()+BAL.shieldCd;   // shield broken: cooldown before a new one
    feedPush({type:"block", name});
    banner("RAID BLOCKED!", name+" broke against your shield");
  } else {
-   const steal=S.cash*rand(0.03,0.07);
+   let steal=S.cash*rand(0.03,0.07), usedDecoy=false;
+   if(S.decoys>0){ S.decoys--; steal*=0.5; usedDecoy=true; }
    S.cash-=steal;
-   feedPush({type:"in", name, amt:steal, seed:hashStr(name), revenged:false});
-   banner(name.toUpperCase()+" RAIDED YOU!", "−"+fmt(steal)+" • get revenge in Rivals");
+   feedPush({type:"in", name, amt:steal, seed:hashStr(name), revenged:false, decoy:usedDecoy});
+   banner(name.toUpperCase()+" RAIDED YOU!",
+          "−"+fmt(steal)+(usedDecoy?" • decoy halved it":"")+" • get revenge in Rivals");
  }
+ save();
+}
+
+// 3x3 bomb blast around the drill: collects everything, no energy cost.
+function useBomb(){
+ if(modalOpen||S.bombs<1){ if(S.bombs<1) toast("No bombs — get them in the Shop"); return; }
+ S.bombs--;
+ shake=7;
+ if(navigator.vibrate) navigator.vibrate(40);
+ for(let rr=drill.row-1;rr<=drill.row+1;rr++){
+  for(let cc=drill.col-1;cc<=drill.col+1;cc++){
+   const tile=getTile(cc,rr);
+   if(!tile||tile.t===T.EMPTY||!isFinite(tile.hp)) continue;
+   if(tile.t===T.CHEST&&!raid){
+     const v=40*BAL.oreScale(depthOf(rr))*incomeMult();
+     S.cash+=v; addFloat(cc*TS+TS/2,rr*TS+TS/2,"+"+fmt(v),"#ffd24a",15);
+   } else {
+     collect(tile,cc,rr);
+   }
+   tile.t=T.EMPTY;
+   spawnParts(cc*TS+TS/2,rr*TS+TS/2,"#ff9d3f",8,200);
+  }
+ }
+ sparkle(drill.px+TS/2,drill.py+TS/2,"#ff9d3f",30);
  save();
 }
 setInterval(()=>{ if(!modalOpen&&Math.random()<0.2) incomingRaid(); }, 5*60*1000);
@@ -884,8 +951,13 @@ function raidTab(){
  ${uRow(IC.raid(),"rgba(255,122,92,.13)","Raid Tickets: "+S.raidTickets+"/3",
    S.raidTickets>=3?"Full — go raid!":"+1 in "+dur(7200-(nowS()-S.ticketAt)),
    `<button class="u-btn ad" onclick="adTicket()">${IC.play()}+1</button>`)}
- ${uRow(IC.shield(),"rgba(122,215,255,.13)","Shields: "+S.shields+"/3","Each blocks one incoming raid",
-   `<button class="u-btn gems" ${S.gems>=25&&S.shields<3?"":"disabled"} onclick="buyShield()">${IC.gem("#fff")}25</button>`)}
+ ${uRow(IC.shield(),"rgba(122,215,255,.13)",
+   S.shields?"Shield: ACTIVE":"Shield: none",
+   shieldSub(),
+   `<button class="u-btn gems" ${canBuyShield()?"":"disabled"} onclick="buyShield()">${IC.gem("#fff")}${BAL.shieldCost}</button>`)}
+ ${uRow(IC.chest("#cf9bff"),"rgba(207,155,255,.13)","Decoy Vaults: "+S.decoys+"/"+BAL.decoyMax,
+   "Each one halves the loss from one incoming raid",
+   `<button class="u-btn gems" ${S.gems>=BAL.decoyCost&&S.decoys<BAL.decoyMax?"":"disabled"} onclick="buyDecoy()">${IC.gem("#fff")}${BAL.decoyCost}</button>`)}
  <div class="target-card">
    <div class="ava" style="margin:0 auto 8px;background:hsl(${t.seed%360} 60% 45%)">${t.name[0].toUpperCase()}</div>
    <div style="font-weight:900;font-size:16px">${t.name}</div>
@@ -899,7 +971,7 @@ function raidTab(){
 }
 function topTab(){
  const medals=["#ffd24a","#c0c8d8","#cd8b4f"];
- return `<div class="u-sub" style="text-align:center;margin-bottom:10px">Deepest dig • resets weekly • top 3 win gem prizes</div>`+
+ return `<div class="u-sub" style="text-align:center;margin-bottom:10px">Ranked by deepest dig — depth can't be bought, only drilled. Resets weekly • top 3 win gem prizes</div>`+
   leaderboard().map((e,i)=>uRow(
    i<3?IC.trophy(medals[i]):`<div class="rank">${i+1}</div>`,
    e.me?"rgba(255,157,63,.2)":"rgba(255,255,255,.05)",
@@ -927,7 +999,7 @@ function feedTab(){
   if(e.type==="block") return uRow(IC.shield(),"rgba(122,215,255,.12)",
     e.name+" attacked you","Blocked by your shield • "+ago(e.at),"");
   return uRow(IC.raid("#ff5e62"),"rgba(255,94,98,.12)",
-    e.name+" raided you","−"+fmt(e.amt)+" • "+ago(e.at),
+    e.name+" raided you","−"+fmt(e.amt)+(e.decoy?" • decoy halved it":"")+" • "+ago(e.at),
     e.revenged?"":`<button class="u-btn ad" onclick="revengeRaid(${i})">Revenge</button>`);
  }).join("");
 }
@@ -943,8 +1015,26 @@ window.openSocial=function(tab){
 window.raidNow=()=>{ if(currentTarget) startRaid(currentTarget,false); };
 window.scout=()=>{ currentTarget=rollTarget(); openSocial("raid"); };
 window.adTicket=()=>watchAd(()=>{ S.raidTickets=Math.min(S.raidTickets+1,5); toast("+1 raid ticket!"); openSocial("raid"); });
-window.buyShield=()=>{ if(S.gems<25||S.shields>=3) return; S.gems-=25; S.shields++; save(); openSocial("raid"); };
-window.buyShieldShop=()=>{ if(S.gems<25||S.shields>=3) return; S.gems-=25; S.shields++; save(); openShop(); };
+function shieldSub(){
+ if(S.shields) return "Blocks the next raid, then needs a "+dur(BAL.shieldCd)+" cooldown";
+ if(nowS()<S.shieldCdUntil) return "Broken — new shield in "+dur(S.shieldCdUntil-nowS());
+ return "Blocks one incoming raid (max 1, not stackable)";
+}
+function canBuyShield(){ return !S.shields&&S.gems>=BAL.shieldCost&&nowS()>=S.shieldCdUntil; }
+function purchaseShield(){ if(!canBuyShield()) return false; S.gems-=BAL.shieldCost; S.shields=1; save(); return true; }
+function purchaseDecoy(){ if(S.gems<BAL.decoyCost||S.decoys>=BAL.decoyMax) return false; S.gems-=BAL.decoyCost; S.decoys++; save(); return true; }
+function purchaseBomb(){ if(S.gems<BAL.bombCost||S.bombs>=BAL.bombMax) return false; S.gems-=BAL.bombCost; S.bombs++; save(); return true; }
+window.buyShield=()=>{ if(purchaseShield()) openSocial("raid"); };
+window.buyShieldShop=()=>{ if(purchaseShield()) openShop(); };
+window.buyDecoy=()=>{ if(purchaseDecoy()) openSocial("raid"); };
+window.buyDecoyShop=()=>{ if(purchaseDecoy()) openShop(); };
+window.buyBombShop=()=>{ if(purchaseBomb()) openShop(); };
+window.buySkin=id=>{
+ const k=SKINS.find(x=>x.id===id);
+ if(!k||S.skins.includes(id)||S.gems<k.cost) return;
+ S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop();
+};
+window.equipSkin=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop(); } };
 window.addFriend=()=>{
  const el=document.getElementById("friend-code"), v=(el&&el.value||"").trim();
  if(v.length<2){ toast("Code too short"); return; }
@@ -959,17 +1049,37 @@ window.revengeRaid=i=>{
             stock:Math.max(e.amt*8, S.cash*0.8+600)}, true);
 };
 
-/* =================== Input =================== */
-function setHeld(d,el){
- held=d;
- document.querySelectorAll(".dir").forEach(b=>b.classList.toggle("held",b===el));
+/* =================== Input: virtual joystick =================== */
+const joy=document.getElementById("joy"), knob=document.getElementById("joy-knob");
+let joyPointer=null;
+function joyMove(e){
+ const r=joy.getBoundingClientRect();
+ let dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2);
+ const m=Math.hypot(dx,dy), max=r.width/2-10;
+ if(m>max){ dx*=max/m; dy*=max/m; }
+ knob.style.transform=`translate(${dx}px,${dy}px)`;
+ if(m<16){ held=null; return; }   // dead zone
+ if(Math.abs(dx)>Math.abs(dy)) held=[dx>0?1:-1,0];
+ else held=[0,dy>0?1:-1];
 }
-document.querySelectorAll(".dir").forEach(b=>{
- const d=b.dataset.d.split(",").map(Number);
- b.innerHTML=IC.arrow(d[1]===-1?180:d[0]===-1?90:d[0]===1?-90:0);
- b.addEventListener("pointerdown",e=>{ e.preventDefault(); setHeld(d,b); });
+function joyEnd(e){
+ if(e.pointerId!==joyPointer) return;
+ joyPointer=null; held=null;
+ joy.classList.remove("active");
+ knob.style.transform="translate(0,0)";
+}
+joy.addEventListener("pointerdown",e=>{
+ e.preventDefault();
+ joyPointer=e.pointerId;
+ joy.setPointerCapture(e.pointerId);
+ joy.classList.add("active");
+ joyMove(e);
 });
-["pointerup","pointercancel"].forEach(ev=>document.addEventListener(ev,()=>setHeld(null,null)));
+joy.addEventListener("pointermove",e=>{ if(e.pointerId===joyPointer) joyMove(e); });
+joy.addEventListener("pointerup",joyEnd);
+joy.addEventListener("pointercancel",joyEnd);
+
+// Tap-and-hold on the world also digs toward the touched tile.
 cv.addEventListener("pointerdown",e=>{
  if(modalOpen) return;
  const r=cv.getBoundingClientRect();
@@ -977,19 +1087,23 @@ cv.addEventListener("pointerdown",e=>{
  const tc=Math.floor(wx/TS), tr=Math.floor(wy/TS);
  let dx=clamp(tc-drill.col,-1,1), dy=clamp(tr-drill.row,-1,1);
  if(Math.abs(tc-drill.col)>=Math.abs(tr-drill.row)) dy=0; else dx=0;
- if(dx||dy) setHeld([dx,dy],null);
+ if(dx||dy) held=[dx,dy];
 });
+["pointerup","pointercancel"].forEach(ev=>cv.addEventListener(ev,()=>{ held=null; }));
 window.addEventListener("keydown",e=>{
  const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowDown:[0,1],ArrowUp:[0,-1]};
- if(m[e.key]){ setHeld(m[e.key],document.querySelector(".dir."+{ArrowLeft:"left",ArrowRight:"right",ArrowDown:"down",ArrowUp:"up"}[e.key])); e.preventDefault(); }
+ if(m[e.key]){ held=m[e.key]; e.preventDefault(); }
 });
-window.addEventListener("keyup",()=>setHeld(null,null));
+window.addEventListener("keyup",()=>{ if(joyPointer===null) held=null; });
+
 document.getElementById("btn-upg").innerHTML+=IC.drill();
 document.getElementById("btn-social").innerHTML+=IC.raid();
 document.getElementById("btn-shop").innerHTML=IC.bag();
+document.getElementById("btn-bomb").innerHTML+=IC.bolt("#ff9d3f");
 document.getElementById("btn-upg").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openUpgrades(); });
 document.getElementById("btn-shop").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openShop(); });
 document.getElementById("btn-social").addEventListener("click",()=>{ raid?endRaid():openSocial(); });
+document.getElementById("btn-bomb").addEventListener("click",useBomb);
 
 /* =================== Render =================== */
 function biome(d){
@@ -1086,10 +1200,13 @@ function drawDrill(){
  ctx.fillStyle="#1c1d28"; roundRect(ctx,-s*0.38,s*0.18,s*0.76,s*0.22,s*0.1); ctx.fill();
  ctx.strokeStyle="rgba(255,255,255,.2)"; ctx.lineWidth=1.5;
  for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.moveTo(i*s*0.13,s*0.2); ctx.lineTo(i*s*0.13,s*0.38); ctx.stroke(); }
- // body
+ // body (colored by equipped skin)
+ const skin=SKINS.find(k=>k.id===S.skin)||SKINS[0];
  const bg=ctx.createLinearGradient(0,-s*0.3,0,s*0.2);
- bg.addColorStop(0,"#ffb14a"); bg.addColorStop(1,"#e2641f");
+ bg.addColorStop(0,skin.top); bg.addColorStop(1,skin.bot);
+ if(skin.glow){ ctx.shadowColor=skin.glow; ctx.shadowBlur=14; }
  ctx.fillStyle=bg; roundRect(ctx,-s*0.32,-s*0.28,s*0.64,s*0.5,s*0.12); ctx.fill();
+ ctx.shadowBlur=0;
  ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.5; roundRect(ctx,-s*0.32,-s*0.28,s*0.64,s*0.5,s*0.12); ctx.stroke();
  // window
  ctx.fillStyle="#9fe8ff"; ctx.beginPath(); ctx.arc(-s*0.08,-s*0.07,s*0.11,0,7); ctx.fill();
@@ -1134,6 +1251,9 @@ function hud(){
  while(S.raidTickets<3&&nowS()-S.ticketAt>=7200){ S.raidTickets++; S.ticketAt+=7200; }
  if(S.raidTickets>=3) S.ticketAt=nowS();
  document.getElementById("btn-social").classList.toggle("leave",!!raid);
+ const bombEl=document.getElementById("bomb-count");
+ bombEl.textContent=S.bombs;
+ document.getElementById("btn-bomb").style.opacity=S.bombs>0?1:0.45;
  document.getElementById("soc-badge").classList.toggle("on",
    !raid&&S.feed.some(f=>f.type==="in"&&!f.revenged));
  document.getElementById("upg-badge").classList.toggle("on", !raid&&
