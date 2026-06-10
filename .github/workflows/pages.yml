@@ -1,36 +1,35 @@
-name: Deploy preview to GitHub Pages
+name: Publish prototype to GitHub Pages
 
-# Publishes the playable prototype (preview/index.html) to GitHub Pages so it
-# can be shared with a link. One-time setup required in the repo:
-#   Settings -> Pages -> Build and deployment -> Source: "GitHub Actions"
+# Pages serves from the gh-pages branch (classic mode, auto-enabled).
+# This workflow keeps that branch in sync: any change to preview/ on the
+# development branch is force-pushed to gh-pages as a fresh single commit.
 on:
   push:
-    branches: ["**"]
+    branches: ["claude/mobile-game-ads-iap-3qiosv"]
     paths: ["preview/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/configure-pages@v4
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: preview
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Push preview to gh-pages
+        run: |
+          mkdir -p /tmp/site
+          cp preview/index.html /tmp/site/index.html
+          touch /tmp/site/.nojekyll
+          cd /tmp/site
+          git init -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish prototype ${GITHUB_SHA::7}"
+          git push --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
