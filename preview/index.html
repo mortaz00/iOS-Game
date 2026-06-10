@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gem Miner — Browser Preview</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #000; display: flex; justify-content: center; align-items: center;
+    min-height: 100vh; padding: 12px;
+  }
+  /* Phone frame */
+  #phone {
+    width: 390px; height: 800px; max-height: 96vh; border-radius: 44px;
+    border: 6px solid #222; overflow: hidden; position: relative;
+    background: linear-gradient(#0d0d29, #1f0a40);
+    display: flex; flex-direction: column;
+    box-shadow: 0 0 60px rgba(120, 80, 255, .25);
+  }
+  #screen { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+  .tab-page { flex: 1; overflow-y: auto; display: none; flex-direction: column; padding: 18px; }
+  .tab-page.active { display: flex; }
+
+  /* ---- Mine tab ---- */
+  #header { display: flex; justify-content: space-between; align-items: flex-start; }
+  #crystals { font-size: 38px; font-weight: 800; color: #fff; }
+  #persec { font-size: 14px; color: #5fd6ff; margin-top: 2px; }
+  #gems { font-size: 16px; font-weight: 700; color: #fff; text-align: right; }
+  #gems span { color: #ff5f9e; }
+  #streak { font-size: 12px; color: orange; text-align: right; margin-top: 4px; }
+  #chips { height: 30px; margin-top: 10px; display: flex; gap: 8px; justify-content: center; }
+  .chip { font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 999px; }
+  .chip.frenzy { background: rgba(255, 214, 0, .22); color: #ffd600; }
+  .chip.boost { background: rgba(95, 214, 255, .22); color: #5fd6ff; }
+  .chip.shards { background: rgba(190, 120, 255, .22); color: #c98fff; }
+
+  #gem-zone { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+  #gem {
+    width: 170px; height: 170px; cursor: pointer; user-select: none;
+    transition: transform .07s; filter: drop-shadow(0 0 22px rgba(95, 214, 255, .7));
+  }
+  #gem.frenzy { filter: drop-shadow(0 0 44px rgba(255, 214, 0, .9)); }
+  #gem:active { transform: scale(.86); }
+  .floater {
+    position: absolute; font-weight: 800; color: #fff; pointer-events: none;
+    animation: rise .9s ease-out forwards; font-size: 18px; text-shadow: 0 2px 4px #000;
+  }
+  .floater.crit { color: #ffd600; font-size: 28px; }
+  @keyframes rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-110px); opacity: 0; } }
+
+  .big-btn {
+    border: none; border-radius: 14px; padding: 15px; font-size: 16px; font-weight: 700;
+    color: #fff; cursor: pointer; width: 100%;
+    background: linear-gradient(90deg, #ff9500, #ff2d78);
+  }
+  #boost-active { text-align: center; color: #5fd6ff; font-size: 14px; padding: 14px; display: none; }
+
+  /* ---- Upgrades tab ---- */
+  .row {
+    display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,.06);
+    border-radius: 14px; padding: 12px; margin-bottom: 10px;
+  }
+  .row .icon { font-size: 26px; width: 38px; text-align: center; }
+  .row .info { flex: 1; }
+  .row .name { font-weight: 700; color: #fff; font-size: 15px; }
+  .row .sub { font-size: 12px; color: #9aa; margin-top: 2px; }
+  .buy {
+    border: none; border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 13px;
+    color: #fff; background: #2ecc71; cursor: pointer; min-width: 74px;
+  }
+  .buy:disabled { background: rgba(255,255,255,.15); color: #889; cursor: default; }
+  h2 { color: #fff; font-size: 22px; margin-bottom: 14px; }
+  .section-label { font-size: 13px; font-weight: 700; margin: 14px 0 8px; }
+
+  /* ---- Shop tab ---- */
+  .shop-card { background: rgba(255,255,255,.06); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .starter {
+    background: linear-gradient(135deg, #7b2ff7, #3a2a8c); text-align: center; color: #fff;
+  }
+  .starter .timer { color: #ffd600; font-size: 12px; font-weight: 700; margin: 6px 0 10px; }
+  .price-btn {
+    border: none; border-radius: 999px; padding: 9px 22px; font-weight: 700;
+    background: #ffd600; color: #000; cursor: pointer; font-size: 14px;
+  }
+  .iap-price { background: #3478f6; color: #fff; }
+  .gem-price { background: #ff5f9e; color: #fff; }
+
+  /* ---- Tab bar ---- */
+  #tabbar {
+    display: flex; background: #101018; border-top: 1px solid #222; padding: 8px 0 14px;
+  }
+  .tab-btn {
+    flex: 1; background: none; border: none; color: #667; font-size: 11px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .tab-btn .ticon { font-size: 20px; }
+  .tab-btn.active { color: #5fd6ff; }
+
+  /* ---- Comet ---- */
+  #comet {
+    position: absolute; width: 70px; height: 70px; border-radius: 50%; border: none;
+    background: radial-gradient(circle at 35% 30%, #ffe87a, #ff9500); cursor: pointer;
+    font-size: 30px; display: none; z-index: 40;
+    box-shadow: 0 0 26px rgba(255, 214, 0, .9); animation: pulse .55s ease-in-out infinite alternate;
+  }
+  @keyframes pulse { from { transform: scale(.92); } to { transform: scale(1.12); } }
+
+  /* ---- Overlays / sheets ---- */
+  .overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.55); z-index: 50;
+    display: none; align-items: flex-end;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    background: #16161f; width: 100%; border-radius: 22px 22px 0 0; padding: 24px 18px 30px;
+    text-align: center; color: #fff;
+  }
+  .sheet h3 { font-size: 24px; margin-bottom: 6px; }
+  .sheet p { color: #9aa; font-size: 13px; margin-bottom: 14px; }
+  .sheet .huge {
+    font-size: 44px; font-weight: 800; margin: 8px 0 16px;
+    background: linear-gradient(#5fd6ff, #b06bff); -webkit-background-clip: text;
+    background-clip: text; color: transparent;
+  }
+  .sheet .secondary { background: none; border: none; color: #9aa; font-size: 14px; margin-top: 12px; cursor: pointer; }
+  .mega { background: linear-gradient(90deg, #ffd600, #ff9500); color: #000; }
+  .small-opt { background: rgba(255,255,255,.1); color: #fff; margin-top: 10px; }
+
+  #ad-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,.94); z-index: 90;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    color: #fff; gap: 14px; text-align: center;
+  }
+  #ad-overlay .tv { font-size: 54px; }
+  #ad-overlay .note { color: #778; font-size: 12px; max-width: 240px; }
+
+  #toast {
+    position: absolute; top: 70px; left: 50%; transform: translateX(-50%);
+    background: rgba(46, 204, 113, .95); color: #fff; font-weight: 700; font-size: 13px;
+    padding: 9px 18px; border-radius: 999px; z-index: 95; display: none; white-space: nowrap;
+  }
+  #banner {
+    text-align: center; font-size: 10px; color: #556; padding: 4px; background: #0a0a12;
+  }
+</style>
+</head>
+<body>
+<div id="phone">
+  <div id="banner">BROWSER PREVIEW — the real game is the native iOS app in this repo</div>
+  <div id="screen">
+
+    <!-- MINE TAB -->
+    <div class="tab-page active" id="page-mine">
+      <div id="header">
+        <div>
+          <div id="crystals">0</div>
+          <div id="persec">0 / sec</div>
+        </div>
+        <div>
+          <div id="gems">💎 <span>25</span></div>
+          <div id="streak">🔥 1-day streak</div>
+        </div>
+      </div>
+      <div id="chips"></div>
+      <div id="gem-zone">
+        <svg id="gem" viewBox="0 0 100 100">
+          <defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#5fd6ff"/><stop offset="1" stop-color="#b06bff"/>
+          </linearGradient></defs>
+          <polygon points="50,5 90,38 50,95 10,38" fill="url(#gg)"/>
+          <polygon points="50,5 65,38 50,95 35,38" fill="rgba(255,255,255,.25)"/>
+        </svg>
+      </div>
+      <button class="big-btn" id="boost-btn">▶ Watch ad: ×2 everything for 4h</button>
+      <div id="boost-active">Boost active — keep mining! 🚀</div>
+    </div>
+
+    <!-- UPGRADES TAB -->
+    <div class="tab-page" id="page-upgrades">
+      <h2>Upgrades</h2>
+      <div class="section-label" style="color:#5fd6ff">TAP POWER</div>
+      <div id="tap-upgrade"></div>
+      <div class="section-label" style="color:#c98fff">MINERS</div>
+      <div id="generators"></div>
+    </div>
+
+    <!-- SHOP TAB -->
+    <div class="tab-page" id="page-shop">
+      <h2>Shop</h2>
+      <div class="shop-card starter" id="starter-card">
+        <div style="font-weight:800">⭐️ STARTER PACK ⭐️</div>
+        <div style="font-size:13px; opacity:.9; margin-top:4px">300 gems + 24h of ×2 production</div>
+        <div class="timer" id="starter-timer">Offer ends in 47h 59m</div>
+        <button class="price-btn" onclick="buyStarter()">$3.99</button>
+      </div>
+      <div class="shop-card">
+        <div class="section-label" style="color:#2ecc71; margin-top:0">🎁 FREE REWARDS</div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="icon">▶</div>
+          <div class="info"><div class="name">Free Gems</div><div class="sub" id="freegem-sub">Watch an ad → 25 gems</div></div>
+          <button class="buy" id="freegem-btn" onclick="freeGems()">Watch</button>
+        </div>
+      </div>
+      <div class="shop-card">
+        <div class="section-label" style="color:#ff5f9e; margin-top:0">⏱ TIME WARPS (GEMS)</div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="info"><div class="name">2-hour Time Warp</div><div class="sub" id="warp2-sub"></div></div>
+          <button class="buy gem-price" onclick="timeWarp(7200, 50)">💎 50</button>
+        </div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="info"><div class="name">8-hour Time Warp</div><div class="sub" id="warp8-sub"></div></div>
+          <button class="buy gem-price" onclick="timeWarp(28800, 150)">💎 150</button>
+        </div>
+      </div>
+      <div class="shop-card">
+        <div class="section-label" style="color:#3478f6; margin-top:0">💰 GEM PACKS &amp; UPGRADES (IAP)</div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="info"><div class="name">Fistful of Gems</div><div class="sub">120 gems</div></div>
+          <button class="buy iap-price" onclick="fakeIAP(120, this)">$1.99</button>
+        </div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="info"><div class="name">Sack of Gems</div><div class="sub">700 gems — 45% more value</div></div>
+          <button class="buy iap-price" onclick="fakeIAP(700, this)">$7.99</button>
+        </div>
+        <div class="row" style="background:none; padding:8px 0; margin:0">
+          <div class="info"><div class="name">Gem Vault</div><div class="sub">4000 gems — best value</div></div>
+          <button class="buy iap-price" onclick="fakeIAP(4000, this)">$29.99</button>
+        </div>
+        <div class="sub" style="font-size:11px; color:#667; margin-top:8px">
+          Purchases are simulated in this preview. The iOS app uses StoreKit 2.
+        </div>
+      </div>
+    </div>
+
+    <!-- PRESTIGE TAB -->
+    <div class="tab-page" id="page-prestige" style="text-align:center">
+      <h2 style="margin-top:10px">Prestige ✦</h2>
+      <div style="font-size:60px; margin:10px 0">✨</div>
+      <p style="color:#9aa; font-size:13px; margin-bottom:16px">
+        Trade your run for Prestige Shards.<br>Each shard boosts ALL production by +10% — forever.
+      </p>
+      <div class="shop-card" style="text-align:left; color:#fff; font-size:14px" id="prestige-stats"></div>
+      <button class="big-btn" id="prestige-btn" style="background:linear-gradient(90deg,#7b2ff7,#ff2d78)">Locked</button>
+      <div class="sub" id="prestige-progress" style="color:#9aa; font-size:12px; margin-top:10px"></div>
+    </div>
+
+    <!-- Comet -->
+    <button id="comet">✨</button>
+
+    <!-- Offline earnings sheet -->
+    <div class="overlay" id="offline-overlay">
+      <div class="sheet">
+        <h3>Welcome back! ⛏️</h3>
+        <p>While you were away, your miners produced</p>
+        <div class="huge" id="offline-amount">0</div>
+        <button class="big-btn" onclick="claimOffline(true)">▶ Claim ×2 (watch ad)</button>
+        <button class="secondary" onclick="claimOffline(false)">Claim</button>
+      </div>
+    </div>
+
+    <!-- Comet offer sheet -->
+    <div class="overlay" id="comet-overlay">
+      <div class="sheet">
+        <h3>✨ Lucky Comet! ✨</h3>
+        <p>You caught it! Choose your reward:</p>
+        <button class="big-btn mega" onclick="cometMega()">▶ MEGA REWARD (watch ad)<br>
+          <span style="font-size:12px; font-weight:600">⚡ ×7 tap frenzy for 77s + 15 gems</span></button>
+        <button class="big-btn small-opt" onclick="cometSmall()">Small reward<br>
+          <span style="font-size:12px; font-weight:600" id="comet-small-sub"></span></button>
+      </div>
+    </div>
+
+    <!-- Simulated ad -->
+    <div id="ad-overlay">
+      <div class="tv">📺</div>
+      <div style="font-size:20px; font-weight:700">Simulated ad • <span id="ad-secs">3</span>s</div>
+      <div class="note">The iOS build plays a real rewarded video here (AdMob).</div>
+    </div>
+
+    <div id="toast"></div>
+  </div>
+
+  <!-- Tab bar -->
+  <div id="tabbar">
+    <button class="tab-btn active" data-tab="mine"><span class="ticon">💎</span>Mine</button>
+    <button class="tab-btn" data-tab="upgrades"><span class="ticon">⬆️</span>Upgrades</button>
+    <button class="tab-btn" data-tab="shop"><span class="ticon">🛍</span>Shop</button>
+    <button class="tab-btn" data-tab="prestige"><span class="ticon">✨</span>Prestige</button>
+  </div>
+</div>
+
+<script>
+// ---- Balance (mirrors BalanceConfig.swift) ----
+const BAL = {
+  costGrowth: 1.15, milestoneEvery: 25,
+  tapBase: 1, tapGrowth: 1.6, tapCostBase: 25, tapCostGrowth: 2.2,
+  critChance: 0.05, critMult: 10,
+  offlineEff: 0.5, offlineCapH: 8,
+  prestigeUnlock: 1e6, shardBonus: 0.10,
+  boostMult: 2, boostDur: 4 * 3600, frenzyMult: 7, frenzyDur: 77,
+};
+const GENS = [
+  { id: 0, name: "Pickaxe Gnome", icon: "⛏", baseCost: 15, baseRate: 0.5 },
+  { id: 1, name: "Mine Cart", icon: "🛒", baseCost: 120, baseRate: 4 },
+  { id: 2, name: "Drill Rig", icon: "⚙️", baseCost: 1500, baseRate: 35 },
+  { id: 3, name: "Crystal Golem", icon: "🗿", baseCost: 25000, baseRate: 320 },
+  { id: 4, name: "Laser Excavator", icon: "⚡", baseCost: 4e5, baseRate: 3000 },
+  { id: 5, name: "Quantum Tunneler", icon: "⚛️", baseCost: 8e6, baseRate: 30000 },
+  { id: 6, name: "Black Hole Siphon", icon: "🌀", baseCost: 1.5e8, baseRate: 350000 },
+];
+
+// ---- State (persisted to localStorage) ----
+let S = {
+  crystals: 0, gems: 25, run: 0, levels: {}, tapLevel: 1,
+  shards: 0, prestiges: 0, boostUntil: 0, frenzyUntil: 0,
+  lastActive: Date.now(), firstLaunch: Date.now(),
+};
+try { Object.assign(S, JSON.parse(localStorage.getItem("gemminer") || "{}")); } catch (e) {}
+const save = () => localStorage.setItem("gemminer", JSON.stringify(S));
+
+// ---- Helpers ----
+const SUF = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx"];
+function fmt(n) {
+  if (n < 1000) return n < 10 && n !== Math.round(n) ? n.toFixed(1) : Math.round(n).toString();
+  let i = 0; while (n >= 1000 && i < SUF.length - 1) { n /= 1000; i++; }
+  return n.toFixed(n >= 100 ? 0 : n >= 10 ? 1 : 2) + SUF[i];
+}
+function dur(s) {
+  s = Math.max(0, Math.floor(s));
+  if (s >= 3600) return Math.floor(s / 3600) + "h " + Math.floor((s % 3600) / 60) + "m";
+  if (s >= 60) return Math.floor(s / 60) + "m " + (s % 60) + "s";
+  return s + "s";
+}
+const now = () => Date.now() / 1000;
+const boostOn = () => S.boostUntil > now();
+const frenzyOn = () => S.frenzyUntil > now();
+const globalMult = () => (1 + S.shards * BAL.shardBonus) * (boostOn() ? BAL.boostMult : 1);
+const genRate = g => (S.levels[g.id] || 0) === 0 ? 0 :
+  g.baseRate * S.levels[g.id] * Math.pow(2, Math.floor(S.levels[g.id] / BAL.milestoneEvery)) * globalMult();
+const perSec = () => GENS.reduce((a, g) => a + genRate(g), 0);
+const tapVal = () => BAL.tapBase * Math.pow(BAL.tapGrowth, S.tapLevel - 1) * globalMult() * (frenzyOn() ? BAL.frenzyMult : 1);
+const genCost = g => g.baseCost * Math.pow(BAL.costGrowth, S.levels[g.id] || 0);
+const tapCost = () => BAL.tapCostBase * Math.pow(BAL.tapCostGrowth, S.tapLevel - 1);
+const earn = a => { S.crystals += a; S.run += a; };
+
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.style.display = "block";
+  clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 1800);
+}
+
+// ---- Simulated rewarded ad ----
+let adBusy = false;
+function watchAd(onReward) {
+  if (adBusy) return;
+  adBusy = true;
+  const ov = document.getElementById("ad-overlay"), secs = document.getElementById("ad-secs");
+  ov.style.display = "flex";
+  let left = 3; secs.textContent = left;
+  const iv = setInterval(() => {
+    left--;
+    if (left <= 0) { clearInterval(iv); ov.style.display = "none"; adBusy = false; onReward(); }
+    else secs.textContent = left;
+  }, 1000);
+}
+
+// ---- Tabs ----
+document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll(".tab-page").forEach(p => p.classList.toggle("active", p.id === "page-" + b.dataset.tab));
+});
+
+// ---- Mine tap ----
+const gemEl = document.getElementById("gem"), zone = document.getElementById("gem-zone");
+gemEl.addEventListener("pointerdown", e => {
+  const crit = Math.random() < BAL.critChance;
+  const amt = tapVal() * (crit ? BAL.critMult : 1);
+  earn(amt);
+  const f = document.createElement("div");
+  f.className = "floater" + (crit ? " crit" : "");
+  f.textContent = (crit ? "CRIT! +" : "+") + fmt(amt);
+  const r = zone.getBoundingClientRect();
+  f.style.left = (e.clientX - r.left - 20 + (Math.random() * 60 - 30)) + "px";
+  f.style.top = (e.clientY - r.top - 30) + "px";
+  zone.appendChild(f);
+  setTimeout(() => f.remove(), 900);
+  if (navigator.vibrate) navigator.vibrate(crit ? 30 : 8);
+});
+
+// ---- Boost ----
+document.getElementById("boost-btn").onclick = () => watchAd(() => {
+  S.boostUntil = Math.max(now(), S.boostUntil) + BAL.boostDur;
+  toast("🚀 ×2 boost active for 4h!"); save();
+});
+
+// ---- Comet ----
+function scheduleComet(first) {
+  setTimeout(() => {
+    const c = document.getElementById("comet");
+    c.style.left = (15 + Math.random() * 60) + "%";
+    c.style.top = (12 + Math.random() * 30) + "%";
+    c.style.display = "block";
+    const hide = setTimeout(() => { c.style.display = "none"; scheduleComet(false); }, 12000);
+    c.onclick = () => {
+      clearTimeout(hide); c.style.display = "none";
+      document.getElementById("comet-small-sub").textContent = "Instantly earn " + fmt(perSec() * 60) + " crystals";
+      document.getElementById("comet-overlay").classList.add("show");
+    };
+  }, (first ? 15 + Math.random() * 20 : 90 + Math.random() * 150) * 1000);
+}
+function cometMega() {
+  document.getElementById("comet-overlay").classList.remove("show");
+  watchAd(() => {
+    S.frenzyUntil = now() + BAL.frenzyDur; S.gems += 15;
+    toast("⚡ ×7 FRENZY + 15 gems!"); save(); scheduleComet(false);
+  });
+}
+function cometSmall() {
+  document.getElementById("comet-overlay").classList.remove("show");
+  earn(perSec() * 60); toast("+" + fmt(perSec() * 60) + " crystals"); save(); scheduleComet(false);
+}
+scheduleComet(true);
+
+// ---- Offline earnings ----
+let pendingOffline = 0;
+(function () {
+  const away = (Date.now() - S.lastActive) / 1000;
+  if (away > 60) {
+    pendingOffline = perSec() * Math.min(away, BAL.offlineCapH * 3600) * BAL.offlineEff;
+    if (pendingOffline >= 1) {
+      document.getElementById("offline-amount").textContent = fmt(pendingOffline);
+      document.getElementById("offline-overlay").classList.add("show");
+    }
+  }
+})();
+function claimOffline(doubled) {
+  const done = () => {
+    earn(pendingOffline * (doubled ? 2 : 1));
+    toast("+" + fmt(pendingOffline * (doubled ? 2 : 1)) + " crystals");
+    pendingOffline = 0; save();
+  };
+  document.getElementById("offline-overlay").classList.remove("show");
+  doubled ? watchAd(done) : done();
+}
+
+// ---- Shop ----
+let freeGemReadyAt = 0;
+function freeGems() {
+  if (now() < freeGemReadyAt) return;
+  watchAd(() => { S.gems += 25; freeGemReadyAt = now() + 900; toast("💎 +25 gems!"); save(); });
+}
+function timeWarp(seconds, cost) {
+  if (S.gems < cost) { toast("Not enough gems"); return; }
+  S.gems -= cost; earn(perSec() * seconds);
+  toast("+" + fmt(perSec() * seconds) + " crystals"); save();
+}
+function fakeIAP(gems, btn) {
+  S.gems += gems; toast("💎 +" + gems + " gems (simulated purchase)"); save();
+}
+function buyStarter() {
+  S.gems += 300; S.boostUntil = Math.max(now(), S.boostUntil) + 24 * 3600;
+  document.getElementById("starter-card").style.display = "none";
+  toast("⭐ Starter Pack! +300 gems, 24h ×2"); save();
+}
+
+// ---- Prestige ----
+const shardsOnPrestige = () => S.run < BAL.prestigeUnlock ? 0 : Math.floor(Math.sqrt(S.run / BAL.prestigeUnlock));
+document.getElementById("prestige-btn").onclick = () => {
+  const g = shardsOnPrestige();
+  if (!g) return;
+  if (!confirm("Reset this run for +" + g + " shards (+" + g * 10 + "% production, forever)?")) return;
+  S.shards += g; S.prestiges++; S.crystals = 0; S.run = 0; S.levels = {}; S.tapLevel = 1;
+  S.boostUntil = 0; S.frenzyUntil = 0;
+  toast("✦ +" + g + " Prestige Shards!"); save();
+};
+
+// ---- Render ----
+function render() {
+  document.getElementById("crystals").textContent = fmt(S.crystals);
+  document.getElementById("persec").textContent = fmt(perSec()) + " / sec";
+  document.querySelector("#gems span").textContent = S.gems;
+
+  const chips = [];
+  if (frenzyOn()) chips.push('<div class="chip frenzy">⚡ FRENZY ×7 ' + dur(S.frenzyUntil - now()) + "</div>");
+  if (boostOn()) chips.push('<div class="chip boost">🚀 ×2 ' + dur(S.boostUntil - now()) + "</div>");
+  if (S.shards) chips.push('<div class="chip shards">✦ +' + S.shards * 10 + "%</div>");
+  document.getElementById("chips").innerHTML = chips.join("");
+  gemEl.classList.toggle("frenzy", frenzyOn());
+  document.getElementById("boost-btn").style.display = boostOn() ? "none" : "block";
+  document.getElementById("boost-active").style.display = boostOn() ? "block" : "none";
+
+  // Upgrades
+  const tc = tapCost();
+  document.getElementById("tap-upgrade").innerHTML =
+    '<div class="row"><div class="icon">👆</div><div class="info">' +
+    '<div class="name">Tap Power&nbsp; Lv ' + S.tapLevel + '</div>' +
+    '<div class="sub">' + fmt(tapVal()) + ' per tap</div></div>' +
+    '<button class="buy" ' + (S.crystals < tc ? "disabled" : "") + ' onclick="buyTap()">' + fmt(tc) + "</button></div>";
+  document.getElementById("generators").innerHTML = GENS.map(g => {
+    const lv = S.levels[g.id] || 0, c = genCost(g);
+    const sub = lv ? fmt(genRate(g)) + "/sec • ×2 in " + (BAL.milestoneEvery - lv % BAL.milestoneEvery) + " levels"
+                   : "Produces " + fmt(g.baseRate) + "/sec per level";
+    return '<div class="row"><div class="icon">' + g.icon + '</div><div class="info">' +
+      '<div class="name">' + g.name + "&nbsp; Lv " + lv + '</div><div class="sub">' + sub + "</div></div>" +
+      '<button class="buy" ' + (S.crystals < c ? "disabled" : "") + ' onclick="buyGen(' + g.id + ')">' + fmt(c) + "</button></div>";
+  }).join("");
+
+  // Shop bits
+  document.getElementById("warp2-sub").textContent = "Instantly earn " + fmt(perSec() * 7200) + " crystals";
+  document.getElementById("warp8-sub").textContent = "Instantly earn " + fmt(perSec() * 28800) + " crystals";
+  const fg = document.getElementById("freegem-btn");
+  fg.disabled = now() < freeGemReadyAt;
+  document.getElementById("freegem-sub").textContent =
+    now() < freeGemReadyAt ? "Next free gems in " + dur(freeGemReadyAt - now()) : "Watch an ad → 25 gems";
+  const left = S.firstLaunch / 1000 + 48 * 3600 - now();
+  if (left <= 0) document.getElementById("starter-card").style.display = "none";
+  else document.getElementById("starter-timer").textContent = "Offer ends in " + dur(left);
+
+  // Prestige
+  const g = shardsOnPrestige();
+  document.getElementById("prestige-stats").innerHTML =
+    "Current shards <b style='float:right'>✦ " + S.shards + "</b><br>" +
+    "Current bonus <b style='float:right'>+" + S.shards * 10 + "%</b><br>" +
+    "Crystals this run <b style='float:right'>" + fmt(S.run) + "</b><br>" +
+    "Shards on prestige <b style='float:right'>✦ " + g + "</b>";
+  const pb = document.getElementById("prestige-btn");
+  pb.textContent = g ? "Prestige for +" + g + " ✦" : "Locked";
+  pb.style.opacity = g ? 1 : 0.45;
+  document.getElementById("prestige-progress").textContent = g ? "" :
+    "Earn " + fmt(BAL.prestigeUnlock) + " crystals this run to unlock (" + fmt(S.run) + " so far)";
+}
+window.buyTap = () => { const c = tapCost(); if (S.crystals >= c) { S.crystals -= c; S.tapLevel++; save(); } };
+window.buyGen = id => {
+  const g = GENS[id], c = genCost(g);
+  if (S.crystals >= c) { S.crystals -= c; S.levels[id] = (S.levels[id] || 0) + 1; save(); }
+};
+
+// ---- Loop ----
+let last = now();
+setInterval(() => {
+  const t = now(), dt = Math.min(t - last, 2); last = t;
+  earn(perSec() * dt);
+  S.lastActive = Date.now();
+  render();
+}, 100);
+setInterval(save, 5000);
+render();
+</script>
+</body>
+</html>
