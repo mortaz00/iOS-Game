@@ -317,11 +317,11 @@ const TDEF={
  [T.CLAY]:    {hp:55, cost:4, top:"#a8593a", bot:"#73381f"},
  [T.STONE]:   {hp:120,cost:7, top:"#6f7787", bot:"#454c5c"},
  [T.OBSIDIAN]:{hp:280,cost:12,top:"#473d63", bot:"#241d38"},
- [T.GOLD]:    {hp:60, cost:5, gem:"#ffd24a", value:15,  name:"Gold"},
- [T.EMERALD]: {hp:90, cost:6, gem:"#3ddc84", value:40,  name:"Emerald"},
- [T.RUBY]:    {hp:130,cost:8, gem:"#ff4d6d", value:95,  name:"Ruby"},
- [T.SAPPHIRE]:{hp:190,cost:10,gem:"#4d79ff", value:230, name:"Sapphire"},
- [T.DIAMOND]: {hp:280,cost:13,gem:"#b9f2ff", value:650, name:"Diamond"},
+ [T.GOLD]:    {hp:60, cost:5, gem:"#ffd24a", value:10,  name:"Gold"},
+ [T.EMERALD]: {hp:90, cost:6, gem:"#3ddc84", value:26,  name:"Emerald"},
+ [T.RUBY]:    {hp:130,cost:8, gem:"#ff4d6d", value:62,  name:"Ruby"},
+ [T.SAPPHIRE]:{hp:190,cost:10,gem:"#4d79ff", value:150, name:"Sapphire"},
+ [T.DIAMOND]: {hp:280,cost:13,gem:"#b9f2ff", value:420, name:"Diamond"},
  [T.CHEST]:   {hp:50, cost:4, gem:"#ffd24a"},
  [T.ENERGY]:  {hp:35, cost:0, gem:"#19e3b1"},
  [T.BEDROCK]: {hp:Infinity, cost:99, top:"#15161f", bot:"#0a0b12"},
@@ -338,7 +338,7 @@ const BAL={
  regenCost:l=>70*Math.pow(2.2,l-1),
  roboRate:(l,best)=>0.6*l*(1+best/40),
  roboCost:l=>120*Math.pow(2.4,l-1),
- oreScale:d=>1+d/30,
+ oreScale:d=>1+d/38,
  boostDur:4*3600, frenzyDur:60,
  relicBonus:0.20, prestigeDepth:300,
  relicWorldHp:0.30,                 // NG+: every relic makes ALL rock 30% tougher
@@ -738,7 +738,7 @@ function endLevel(win){
   if(win){ S.level++; S.maxLevel=Math.max(S.maxLevel,S.level);
    if(navigator.vibrate) navigator.vibrate(30); }
   toast("+"+fmt(gain)+" banked");
-  save(); openLobby();
+  save(); closeModal();   // back to the main screen; START button reappears
  };
  window._lvClaimAd=m=>watchAd(()=>window._lvClaim(m));
  if(win){
@@ -769,7 +769,13 @@ window.openLobby=function(){
   ${uRow(IC.coin("#9fd8ff"),"rgba(58,139,255,.13)","Bank: "+fmt(S.cash),"Spend it on upgrades between levels","")}
   <button class="big-cta" onclick="startLevel()">START LEVEL ${n}</button>
   <button class="big-cta alt" onclick="openUpgrades()">Upgrades</button>
-  <button class="big-cta alt" onclick="openShop()">Shop</button>`);
+  <button class="big-cta alt" onclick="openShop()">Shop</button>
+  <button style="background:none;border:none;color:#667;font-size:12px;margin-top:14px;width:100%;cursor:pointer" onclick="resetAll()">Reset ALL progress — start from zero</button>`);
+};
+window.resetAll=function(){
+ if(!confirm("Erase ALL progress (levels, cash, gems, relics, skins) and start from zero? This cannot be undone.")) return;
+ try{ localStorage.removeItem("gm-deep"); }catch(e){}
+ location.reload();
 };
 
 /* =================== Milestones / banner =================== */
