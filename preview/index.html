@@ -9,7 +9,7 @@
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
   html, body { height:100%; background:#05050d; overflow:hidden; }
   body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
-  #game { position:relative; width:100%; max-width:440px; height:100dvh; overflow:hidden; background:#000; }
+  #game { position:relative; width:100%; max-width:440px; height:100vh; height:100dvh; overflow:hidden; background:#000; }
   canvas { position:absolute; inset:0; touch-action:none; }
 
   /* ---------- HUD ---------- */
@@ -251,6 +251,13 @@
 
 <script>
 "use strict";
+// Surface any startup error on screen (mobile browsers hide the console)
+window.addEventListener("error",function(e){
+ var d=document.createElement("div");
+ d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a00;color:#fff;font:12px monospace;padding:8px;white-space:pre-wrap;";
+ d.textContent="Error: "+(e.message||e.type)+(e.filename?" @"+e.lineno:"");
+ document.body.appendChild(d);
+});
 /* =================== Helpers =================== */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
