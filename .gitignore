@@ -1,0 +1,16 @@
+# Xcode
+*.xcodeproj
+!default.xcodeproj
+xcuserdata/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# SwiftPM
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store

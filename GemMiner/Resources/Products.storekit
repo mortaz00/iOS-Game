@@ -1,0 +1,108 @@
+{
+  "identifier" : "F3E2A1B0-0000-4000-8000-000000000001",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000010",
+      "localizations" : [
+        {
+          "description" : "120 gems to spend on time warps and boosts.",
+          "displayName" : "Fistful of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.gems.fistful",
+      "referenceName" : "Fistful of Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "7.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000011",
+      "localizations" : [
+        {
+          "description" : "700 gems — 45% more value.",
+          "displayName" : "Sack of Gems",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.gems.sack",
+      "referenceName" : "Sack of Gems",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "29.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000012",
+      "localizations" : [
+        {
+          "description" : "4000 gems — the best value in the mine.",
+          "displayName" : "Gem Vault",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.gems.vault",
+      "referenceName" : "Gem Vault",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "3.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000013",
+      "localizations" : [
+        {
+          "description" : "One-time offer: 300 gems plus 24 hours of doubled production.",
+          "displayName" : "Starter Pack",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.starterpack",
+      "referenceName" : "Starter Pack",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000014",
+      "localizations" : [
+        {
+          "description" : "Removes interstitial ads forever. Rewarded ads stay optional.",
+          "displayName" : "Remove Ads",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.removeads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "F3E2A1B0-0000-4000-8000-000000000015",
+      "localizations" : [
+        {
+          "description" : "Permanently doubles all crystal production.",
+          "displayName" : "Permanent ×2 Production",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.gemminer.permanent2x",
+      "referenceName" : "Permanent 2x",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

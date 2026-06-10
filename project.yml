@@ -1,0 +1,42 @@
+name: GemMiner
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+packages:
+  GoogleMobileAds:
+    url: https://github.com/googleads/swift-package-manager-google-mobile-ads.git
+    from: 11.2.0
+
+targets:
+  GemMiner:
+    type: application
+    platform: iOS
+    sources:
+      - GemMiner
+    dependencies:
+      - package: GoogleMobileAds
+        product: GoogleMobileAds
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.gemminer
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    info:
+      path: GemMiner/Resources/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        ITSAppUsesNonExemptEncryption: false
+        # Google AdMob SAMPLE app ID — replace with your real app ID before release.
+        GADApplicationIdentifier: ca-app-pub-3940256099942544~1458002511
+        NSUserTrackingUsageDescription: >-
+          Your data will be used to show you more relevant ads and to support
+          the free version of this game.
+        SKAdNetworkItems:
+          - SKAdNetworkIdentifier: cstr6suwn9.skadnetwork
