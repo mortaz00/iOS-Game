@@ -46,11 +46,27 @@ Serotonin tracks feelings of status and accomplishment.
 - **Collection/unlock feel**: seven escalating miner types from Pickaxe
   Gnome to Black Hole Siphon.
 
-### Oxytocin — social connection (roadmap)
-Not yet implemented; the highest-value additions in order:
-1. Game Center leaderboards (lifetime crystals, prestige count).
-2. Gifting: send a friend a daily "lucky charm" (both get a bonus).
-3. Guild/co-op mining events.
+### Oxytocin — social connection (prototyped in `preview/index.html`)
+The social layer is fully playable in the browser prototype, simulated
+locally; production needs Game Center + a small backend (see below).
+
+1. **Async raids** (the core social mechanic): spend a raid ticket to break
+   into a *snapshot* of a rival's mine — 45 seconds to crack 3 vaults and
+   steal a share of their stockpile. Friends can be raided too. **Revenge**:
+   when someone raids you, the activity feed offers a revenge raid at +50%
+   loot — the strongest re-engagement trigger in the genre (Coin Master's
+   raid/revenge loop). **Shields** block incoming raids and double as a gem
+   sink. Raid tickets regenerate every 2h (appointment mechanic) and one
+   more can be earned per rewarded ad.
+2. **Leaderboard**: deepest dig, weekly flavor, friend ranks visible.
+3. **Friend codes**: add friends, see their depth, raid them.
+
+Architecture note: raids are deliberately **asynchronous** — you raid a
+seeded snapshot, never a live session. This needs only a document store
+(Firebase/Supabase: one document per player with stockpile, depth, shield
+state, and a world seed) plus push notifications. No game servers, no
+netcode, no real-time sync. Real-time co-op was evaluated and rejected:
+10x the infrastructure cost for a fraction of the retention value.
 
 ### Endorphins — sensory pleasure, "juice"
 - Haptics on every meaningful event, scaled to importance (light tap → heavy

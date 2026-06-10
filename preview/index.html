@@ -89,6 +89,30 @@
   .dir.down { grid-column:2; grid-row:2; }
   .dir.right{ grid-column:3; grid-row:2; }
 
+  .round-btn.leave { background:linear-gradient(160deg,#ff5e62,#b3232f); }
+
+  /* ---------- Social ---------- */
+  .tabs { display:flex; gap:6px; margin-bottom:14px; }
+  .tab {
+    flex:1; padding:9px 4px; border-radius:12px; border:none; cursor:pointer;
+    background:rgba(255,255,255,.06); color:#8d93b8; font-weight:800; font-size:12px;
+  }
+  .tab.on { background:linear-gradient(135deg,#ff9d3f,#ff5e62); color:#fff; }
+  .ava {
+    width:38px; height:38px; border-radius:50%; flex:none; font-size:15px;
+    display:flex; align-items:center; justify-content:center; font-weight:900; color:#fff;
+  }
+  .target-card {
+    border-radius:18px; padding:16px; text-align:center; margin-bottom:10px;
+    background:linear-gradient(135deg,#1c2a4a,#14182e); border:1px solid rgba(255,255,255,.12);
+  }
+  .rank { width:26px; text-align:center; font-weight:900; color:#8d93b8; flex:none; }
+  #modal input {
+    user-select:text; -webkit-user-select:text; width:100%; padding:11px 14px; border-radius:12px;
+    margin-bottom:8px; border:1px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.06); color:#fff; font-size:14px;
+  }
+
   /* ---------- Banner / toast ---------- */
   #banner {
     position:absolute; top:23%; left:50%; transform:translate(-50%,0) scale(.7); z-index:20;
@@ -207,6 +231,7 @@
 
   <div id="controls">
     <button class="round-btn" id="btn-upg"><span class="badge" id="upg-badge">!</span></button>
+    <button class="round-btn" id="btn-social"><span class="badge" id="soc-badge">!</span></button>
     <div id="dpad">
       <button class="dir up" data-d="0,-1"></button>
       <button class="dir left" data-d="-1,0"></button>
@@ -253,11 +278,15 @@ chest:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-w
 arrow:r=>`<svg viewBox="0 0 24 24" style="transform:rotate(${r}deg)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
 relic:c=>`<svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.8L21 11l-6.4 2.2L12 20l-2.6-6.8L3 11l6.4-2.2z" fill="${c||'#cf9bff'}"/></svg>`,
 depth:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#9fd8ff'}" stroke-width="2" stroke-linecap="round"><path d="M12 3v14M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>`,
+shield:c=>`<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.2-8 11-4.6-1.8-8-6-8-11V5z" fill="${c||'#7ad7ff'}"/><path d="M12 2l8 3v6c0 5-3.4 9.2-8 11z" fill="rgba(255,255,255,.18)"/></svg>`,
+raid:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ff7a5c'}" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l13 13M20 4L7 17"/><path d="M15.5 18.5l3-3M5.5 15.5l3 3"/><circle cx="18" cy="19" r="1.6"/><circle cx="6" cy="19" r="1.6"/></svg>`,
+trophy:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 5H4.5a3.5 3.5 0 003.5 5M16 5h3.5a3.5 3.5 0 01-3.5 5"/><path d="M12 13v4M8 21h8M10 17h4v4h-4z"/></svg>`,
+users:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0112 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.6A5.5 5.5 0 0121 20"/></svg>`,
 };
 
 /* =================== Tiles & balance =================== */
 const COLS=9;
-const T={EMPTY:0,DIRT:1,CLAY:2,STONE:3,OBSIDIAN:4,GOLD:5,EMERALD:6,RUBY:7,SAPPHIRE:8,DIAMOND:9,CHEST:10,ENERGY:11};
+const T={EMPTY:0,DIRT:1,CLAY:2,STONE:3,OBSIDIAN:4,GOLD:5,EMERALD:6,RUBY:7,SAPPHIRE:8,DIAMOND:9,CHEST:10,ENERGY:11,BEDROCK:12,VAULT:13};
 const TDEF={
  [T.DIRT]:    {hp:25, cost:3, top:"#9c6b33", bot:"#6f4a20"},
  [T.CLAY]:    {hp:45, cost:4, top:"#a8593a", bot:"#73381f"},
@@ -270,6 +299,8 @@ const TDEF={
  [T.DIAMOND]: {hp:280,cost:13,gem:"#b9f2ff", value:650, name:"Diamond"},
  [T.CHEST]:   {hp:50, cost:4, gem:"#ffd24a"},
  [T.ENERGY]:  {hp:35, cost:0, gem:"#19e3b1"},
+ [T.BEDROCK]: {hp:Infinity, cost:99, top:"#15161f", bot:"#0a0b12"},
+ [T.VAULT]:   {hp:150, cost:6, gem:"#ffd24a"},
 };
 const BAL={
  powerDmg:l=>70*Math.pow(1.45,l-1),
@@ -296,6 +327,8 @@ let S={
  perm2x:false, removeAds:false, starterBought:false,
  milestone:0, lastSeen:Date.now(), firstLaunch:Date.now(),
  daily:{last:0,streak:0},
+ shields:1, raidTickets:3, ticketAt:nowS(), raidsWon:0,
+ feed:[], friends:[{name:"Maya",seed:9117},{name:"Tom",seed:4203}],
 };
 try{ const raw=JSON.parse(localStorage.getItem("gm-deep")||"{}");
      S={...S,...raw,up:{...S.up,...(raw.up||{})},daily:{...S.daily,...(raw.daily||{})}}; }catch(e){}
@@ -309,12 +342,19 @@ const maxEnergy=()=>BAL.tankMax(S.up.tank);
 const roboRate=()=>BAL.roboRate(S.up.robo,S.bestDepth);
 
 /* =================== World gen =================== */
-const rows={};
+let rows={};
+let RNG=Math.random;                 // swapped for a seeded PRNG inside raids
+const RAID_ROWS=26, RAID_TIME=45;
+let raid=null, worldBackup=null;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+ t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+
 function genTile(d){
- const r=Math.random();
- let base = d<25?T.DIRT : d<60?(r<0.6?T.DIRT:T.CLAY) : d<140?(Math.random()<0.55?T.CLAY:T.STONE)
-          : d<280?(Math.random()<0.6?T.STONE:T.OBSIDIAN) : T.OBSIDIAN;
- const roll=Math.random();
+ const r=RNG();
+ let base = d<25?T.DIRT : d<60?(r<0.6?T.DIRT:T.CLAY) : d<140?(RNG()<0.55?T.CLAY:T.STONE)
+          : d<280?(RNG()<0.6?T.STONE:T.OBSIDIAN) : T.OBSIDIAN;
+ const roll=RNG();
  if(d>2&&roll<0.012) return T.CHEST;
  if(d>4&&roll<0.012+0.035) return T.ENERGY;
  const oreP=0.10+Math.min(0.15,d/800);
@@ -326,7 +366,7 @@ function genTile(d){
    if(d>=140) avail.push([T.SAPPHIRE,2]);
    if(d>=220) avail.push([T.DIAMOND,1]);
    if(avail.length){
-     let tot=avail.reduce((a,x)=>a+x[1],0), pick=Math.random()*tot;
+     let tot=avail.reduce((a,x)=>a+x[1],0), pick=RNG()*tot;
      for(const [t,w] of avail){ pick-=w; if(pick<=0) return t; }
    }
  }
@@ -334,8 +374,8 @@ function genTile(d){
 }
 function getRow(r){
  if(!rows[r]){ rows[r]=[]; for(let c=0;c<COLS;c++){
-   const t=r<0?T.EMPTY:genTile(r+1);
-   const hp=t===T.EMPTY?0:TDEF[t].hp*(t>=T.GOLD?1:1)*(1+Math.max(0,r)/400);
+   let t = r<0?T.EMPTY : (raid&&r>=RAID_ROWS)?T.BEDROCK : genTile(r+1);
+   const hp=t===T.EMPTY?0:TDEF[t].hp*(1+Math.max(0,r)/400);
    rows[r].push({t,hp,maxHp:hp||1});
  }} return rows[r];
 }
@@ -356,7 +396,7 @@ function buildSprites(){
   const t=+k, d=TDEF[t], s=document.createElement("canvas");
   s.width=s.height=Math.ceil(TS*dpr); const c=s.getContext("2d"); c.scale(dpr,dpr);
   const host = t===T.GOLD?TDEF[T.CLAY] : t>=T.EMERALD&&t<=T.DIAMOND?TDEF[T.STONE]
-             : t===T.CHEST||t===T.ENERGY?TDEF[T.DIRT] : d;
+             : t===T.CHEST||t===T.ENERGY?TDEF[T.DIRT] : t===T.VAULT?TDEF[T.STONE] : d;
   const g=c.createLinearGradient(0,0,0,TS);
   g.addColorStop(0,host.top||"#888"); g.addColorStop(1,host.bot||"#555");
   c.fillStyle=g; c.fillRect(0,0,TS,TS);
@@ -365,9 +405,14 @@ function buildSprites(){
   c.fillStyle="rgba(255,255,255,.13)"; c.fillRect(0,0,TS,2.5);
   c.fillStyle="rgba(0,0,0,.28)"; c.fillRect(0,TS-3,TS,3);
   c.fillRect(TS-2.5,0,2.5,TS);
-  if(d.gem&&t!==T.CHEST&&t!==T.ENERGY){ drawGem(c,TS/2,TS/2,TS*0.3,d.gem); }
+  if(d.gem&&t!==T.CHEST&&t!==T.ENERGY&&t!==T.VAULT){ drawGem(c,TS/2,TS/2,TS*0.3,d.gem); }
   if(t===T.ENERGY){ drawBoltShape(c,TS/2,TS/2,TS*0.3); }
   if(t===T.CHEST){ drawChest(c,TS/2,TS/2,TS*0.62); }
+  if(t===T.VAULT){ drawVault(c,TS); }
+  if(t===T.BEDROCK){
+    c.strokeStyle="rgba(255,255,255,.06)"; c.lineWidth=4;
+    for(let i=-1;i<4;i++){ c.beginPath(); c.moveTo(i*TS*0.4,TS); c.lineTo(i*TS*0.4+TS*0.5,0); c.stroke(); }
+  }
   sprites[t]=s;
  }
 }
@@ -398,6 +443,22 @@ function drawChest(c,x,y,s){
 }
 function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r);
  c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function drawVault(c,size){
+ c.save();
+ c.shadowColor="#ffd24a"; c.shadowBlur=10;
+ c.fillStyle="#343b4e"; roundRect(c,size*0.12,size*0.12,size*0.76,size*0.76,5); c.fill();
+ c.shadowBlur=0;
+ c.strokeStyle="#11141d"; c.lineWidth=2.5; roundRect(c,size*0.12,size*0.12,size*0.76,size*0.76,5); c.stroke();
+ c.strokeStyle="rgba(255,255,255,.15)"; c.lineWidth=1.5;
+ roundRect(c,size*0.19,size*0.19,size*0.62,size*0.62,4); c.stroke();
+ c.beginPath(); c.arc(size/2,size/2,size*0.18,0,7);
+ c.strokeStyle="#ffd24a"; c.lineWidth=3; c.stroke();
+ for(let i=0;i<4;i++){ const a=i*Math.PI/2+Math.PI/4;
+  c.beginPath(); c.moveTo(size/2+Math.cos(a)*size*0.18,size/2+Math.sin(a)*size*0.18);
+  c.lineTo(size/2+Math.cos(a)*size*0.28,size/2+Math.sin(a)*size*0.28); c.stroke(); }
+ c.beginPath(); c.arc(size/2,size/2,size*0.05,0,7); c.fillStyle="#ffd24a"; c.fill();
+ c.restore();
+}
 
 /* =================== Drill / particles =================== */
 const drill={col:4,row:-1,px:0,py:0,anim:null,dir:[0,1],bitSpin:0};
@@ -431,6 +492,31 @@ function depthOf(row){ return Math.max(0,row+1); }
 function collect(tile,c,r){
  const cx=c*TS+TS/2, cy=r*TS+TS/2;
  const d=depthOf(r), def=TDEF[tile.t];
+ if(raid){
+   if(tile.t===T.VAULT){
+     const take=raid.stock*rand(0.08,0.13)*(raid.revenge?1.5:1);
+     raid.loot+=take; raid.vaults--;
+     addFloat(cx,cy,"VAULT! +"+fmt(take),"#ffd24a",22);
+     sparkle(cx,cy,"#ffd24a",30); shake=5;
+     if(navigator.vibrate) navigator.vibrate(30);
+     if(raid.vaults<=0) setTimeout(()=>{ if(raid) endRaid(); },650);
+     return;
+   }
+   if(tile.t===T.CHEST){
+     const take=raid.stock*0.03;
+     raid.loot+=take; addFloat(cx,cy,"+"+fmt(take),"#ffd24a",16); sparkle(cx,cy,"#ffd24a",16);
+     return;
+   }
+   if(tile.t===T.ENERGY){ sparkle(cx,cy,"#19e3b1",10); return; }
+   if(def.value){
+     bumpCombo();
+     const v=def.value*BAL.oreScale(d)*incomeMult()*comboMult();
+     raid.loot+=v;
+     addFloat(cx,cy,"+"+fmt(v),def.gem,combo>=4?20:15);
+     sparkle(cx,cy,def.gem,14);
+   }
+   return;
+ }
  if(tile.t===T.CHEST){ openChest(d); sparkle(cx,cy,"#ffd24a",26); return; }
  if(tile.t===T.ENERGY){ S.energy=clamp(S.energy+30,0,maxEnergy());
    addFloat(cx,cy,"+30","#19e3b1",15); sparkle(cx,cy,"#19e3b1",14); return; }
@@ -457,7 +543,11 @@ function tryDig(dt){
  if(tile.t===T.EMPTY){ if(dy===-1&&nr>=-1||dy!==-1) startMove(dx,dy,0.14); return; }
  if(dy===-1) return; // can't dig upward
  const def=TDEF[tile.t];
- if(S.energy<def.cost){ held=null; openRefill(); return; }
+ if(!isFinite(tile.hp)){ // bedrock: raid boundary
+   if(Math.random()<dt*8) sparkle(nc*TS+TS/2,nr*TS+TS/2,"#8d93b8",2);
+   return;
+ }
+ if(!raid&&S.energy<def.cost){ held=null; openRefill(); return; }
  tile.hp-=digPower()*dt*(frenzyOn()?2:1);
  drill.bitSpin+=dt*30;
  if(Math.random()<dt*22){
@@ -466,7 +556,7 @@ function tryDig(dt){
  }
  if(def.hp>=100) shake=Math.min(shake+dt*14,4);
  if(tile.hp<=0){
-   S.energy-=def.cost;
+   if(!raid) S.energy-=def.cost;
    collect(tile,nc,nr);
    tile.t=T.EMPTY;
    spawnParts(nc*TS+TS/2,nr*TS+TS/2,"#999",6,120);
@@ -478,7 +568,7 @@ function startMove(dx,dy,t){
  drill.anim={fx:drill.px,fy:drill.py,tx:(drill.col+dx)*TS,ty:(drill.row+dy)*TS,t:0,dur:t};
  drill.col+=dx; drill.row+=dy;
  const d=depthOf(drill.row);
- if(d>S.bestRunDepth){ S.bestRunDepth=d; if(d>S.bestDepth) S.bestDepth=d; checkMilestones(d); }
+ if(!raid&&d>S.bestRunDepth){ S.bestRunDepth=d; if(d>S.bestDepth) S.bestDepth=d; checkMilestones(d); }
 }
 
 /* =================== Milestones / banner =================== */
@@ -589,6 +679,8 @@ window.openShop=function(){
     `<button class="u-btn gems" ${S.gems>=30?"":"disabled"} onclick="gemRefill()">${IC.gem("#fff")}30</button>`)}
   ${uRow(IC.robot(),"rgba(207,155,255,.13)","2h Robo Time-Warp","Instantly +"+fmt(roboRate()*incomeMult()*7200)+" cash",
     `<button class="u-btn gems" ${S.gems>=50&&S.up.robo?"":"disabled"} onclick="timeWarp()">${IC.gem("#fff")}50</button>`)}
+  ${uRow(IC.shield(),"rgba(122,215,255,.13)","Raid Shield ("+S.shields+"/3)","Blocks one incoming raid",
+    `<button class="u-btn gems" ${S.gems>=25&&S.shields<3?"":"disabled"} onclick="buyShieldShop()">${IC.gem("#fff")}25</button>`)}
   <div class="sec-label">GEM PACKS &amp; UPGRADES (IAP)</div>
   ${uRow(IC.gem(),"rgba(255,95,158,.13)","Fistful of Gems","120 gems",`<button class="u-btn iap" onclick="iapGems(120)">$1.99</button>`)}
   ${uRow(IC.gem("#ff8fbe"),"rgba(255,95,158,.13)","Sack of Gems","700 gems • 45% more value",`<button class="u-btn iap" onclick="iapGems(700)">$7.99</button>`)}
@@ -663,6 +755,7 @@ function openChest(d){
     <button class="big-cta alt" onclick="_offClaim(1)">Claim</button>`),400);
   }
  }
+ if(away>3600&&Math.random()<0.5) setTimeout(incomingRaid,6000);
  const today=new Date().toDateString();
  if(S.daily.last!==today){
   const yest=new Date(Date.now()-864e5).toDateString();
@@ -673,6 +766,191 @@ function openChest(d){
   save();
  }
 })();
+
+/* =================== Social: raids, leaderboard, friends =================== */
+const BOTNAMES=["Borya","NovaDig","MoleKing","CrystalCat","DeepDan","RustyPick","GoldGret","ShaftLord",
+ "DrillBit","MagmaMia","EchoMiner","TunnelRat","OreSlayer","Gemini","DustDevil","Karat","Seismo","LodeStar"];
+let socTab="raid", currentTarget=null;
+const ago=ms=>{ const m=Math.floor((Date.now()-ms)/60000);
+ return m<1?"just now":m<60?m+"m ago":Math.floor(m/60)+"h ago"; };
+function feedPush(e){ e.at=Date.now(); S.feed.unshift(e); if(S.feed.length>12) S.feed.length=12; }
+
+function rollTarget(friend){
+ let name,seed;
+ if(friend){ name=friend.name; seed=friend.seed; }
+ else { name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
+        seed=(hashStr(name)+Math.floor(Date.now()/36e5))>>>0; }
+ const rng=mulberry32(seed);
+ const stock=Math.max(400, S.cash*(0.5+rng()*1.4)+roboRate()*incomeMult()*1800+rng()*600);
+ return {name, seed, stock, shielded:!friend&&rng()<0.22};
+}
+
+function buildRaidWorld(seed){
+ rows={}; RNG=mulberry32(seed);
+ for(let r=0;r<RAID_ROWS;r++) getRow(r);
+ const spots=[];
+ while(spots.length<3){
+  const c=Math.floor(RNG()*COLS), rr=4+Math.floor(RNG()*(RAID_ROWS-6));
+  if(!spots.some(s=>s[0]===c&&s[1]===rr)) spots.push([c,rr]);
+ }
+ for(const [c,rr] of spots){ const tl=rows[rr][c];
+  tl.t=T.VAULT; tl.hp=tl.maxHp=TDEF[T.VAULT].hp*(1+rr/100); }
+ RNG=Math.random;
+}
+
+function startRaid(target,revenge){
+ if(raid) return;
+ if(!revenge){
+   if(S.raidTickets<1){ toast("No raid tickets left"); return; }
+   S.raidTickets--;
+ }
+ closeModal();
+ worldBackup={rows, dcol:drill.col, drow:drill.row, camY};
+ raid={name:target.name, stock:target.stock, loot:0, vaults:3,
+       endAt:nowS()+RAID_TIME, revenge:!!revenge, seed:target.seed};
+ buildRaidWorld(target.seed);
+ drill.col=4; drill.row=-1; drill.anim=null;
+ drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42; held=null;
+ combo=0; comboAt=0;
+ banner((revenge?"REVENGE RAID: ":"RAIDING ")+target.name.toUpperCase(),
+        "Crack 3 vaults in "+RAID_TIME+"s — digging is free!");
+ save();
+}
+
+function endRaid(){
+ if(!raid) return;
+ const r=raid; raid=null;
+ rows=worldBackup.rows; drill.col=worldBackup.dcol; drill.row=worldBackup.drow;
+ drill.anim=null; drill.px=drill.col*TS; drill.py=drill.row*TS; camY=worldBackup.camY;
+ worldBackup=null; held=null; combo=0;
+ S.cash+=r.loot; S.raidsWon++;
+ feedPush({type:"out", name:r.name, amt:r.loot});
+ window._raidDouble=()=>watchAd(()=>{ S.cash+=r.loot; toast("Loot doubled!"); closeModal(); });
+ openModal(`
+  <div class="m-title">${r.vaults<=0?"PERFECT RAID!":"Raid over"}</div>
+  <div class="m-sub">${r.vaults<=0?"All 3 vaults cracked at "+r.name+"'s mine":"You escaped "+r.name+"'s mine with the loot"}</div>
+  <div class="reward-big">+${fmt(r.loot)}</div>
+  ${r.loot>0?`<button class="big-cta" onclick="_raidDouble()">Double the loot — watch ad</button>`:""}
+  <button class="big-cta alt" onclick="closeModal()">Done</button>`);
+ save();
+}
+
+function incomingRaid(){
+ if(raid||S.cash<600) return;
+ const name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
+ if(S.shields>0){
+   S.shields--;
+   feedPush({type:"block", name});
+   banner("RAID BLOCKED!", name+" broke against your shield");
+ } else {
+   const steal=S.cash*rand(0.03,0.07);
+   S.cash-=steal;
+   feedPush({type:"in", name, amt:steal, seed:hashStr(name), revenged:false});
+   banner(name.toUpperCase()+" RAIDED YOU!", "−"+fmt(steal)+" • get revenge in Rivals");
+ }
+ save();
+}
+setInterval(()=>{ if(!modalOpen&&Math.random()<0.2) incomingRaid(); }, 5*60*1000);
+
+function leaderboard(){
+ const dayN=Math.floor(Date.now()/864e5);
+ const list=BOTNAMES.slice(0,14).map(n=>{
+   const rng=mulberry32((hashStr(n)*31+dayN)>>>0);
+   const depth=Math.round(Math.max(12,(S.bestDepth||20)*(0.3+rng()*1.9)+rng()*30));
+   return {name:n, depth, relics:Math.floor(depth/300)};
+ });
+ list.push({name:"You", depth:S.bestDepth, relics:S.relics, me:true});
+ list.sort((a,b)=>b.depth-a.depth);
+ return list;
+}
+function friendDepth(f){
+ const dayN=Math.floor(Date.now()/864e5);
+ const rng=mulberry32((f.seed*17+dayN)>>>0);
+ return Math.round(Math.max(10,(S.bestDepth||20)*(0.4+rng()*1.4)));
+}
+
+function raidTab(){
+ if(!currentTarget) currentTarget=rollTarget();
+ const t=currentTarget;
+ const canRaid=S.raidTickets>0&&!t.shielded;
+ return `
+ ${uRow(IC.raid(),"rgba(255,122,92,.13)","Raid Tickets: "+S.raidTickets+"/3",
+   S.raidTickets>=3?"Full — go raid!":"+1 in "+dur(7200-(nowS()-S.ticketAt)),
+   `<button class="u-btn ad" onclick="adTicket()">${IC.play()}+1</button>`)}
+ ${uRow(IC.shield(),"rgba(122,215,255,.13)","Shields: "+S.shields+"/3","Each blocks one incoming raid",
+   `<button class="u-btn gems" ${S.gems>=25&&S.shields<3?"":"disabled"} onclick="buyShield()">${IC.gem("#fff")}25</button>`)}
+ <div class="target-card">
+   <div class="ava" style="margin:0 auto 8px;background:hsl(${t.seed%360} 60% 45%)">${t.name[0].toUpperCase()}</div>
+   <div style="font-weight:900;font-size:16px">${t.name}</div>
+   <div class="u-sub" style="margin-top:3px">Stockpile: ~${fmt(t.stock)}${t.shielded?" • SHIELDED":""}</div>
+   <button class="big-cta" style="margin-top:12px" ${canRaid?"":"disabled"} onclick="raidNow()">
+     ${t.shielded?"Target is shielded":S.raidTickets<1?"No tickets — watch an ad":"RAID THIS MINE"}
+     <span class="s">crack 3 vaults in ${RAID_TIME}s • steal up to ~${fmt(t.stock*0.39)}</span></button>
+   <button class="big-cta alt" onclick="scout()">Scout another target</button>
+ </div>
+ <div class="u-sub" style="text-align:center">Raids hit a snapshot of the rival's mine — they keep playing undisturbed. Raids won: ${S.raidsWon}</div>`;
+}
+function topTab(){
+ const medals=["#ffd24a","#c0c8d8","#cd8b4f"];
+ return `<div class="u-sub" style="text-align:center;margin-bottom:10px">Deepest dig • resets weekly • top 3 win gem prizes</div>`+
+  leaderboard().map((e,i)=>uRow(
+   i<3?IC.trophy(medals[i]):`<div class="rank">${i+1}</div>`,
+   e.me?"rgba(255,157,63,.2)":"rgba(255,255,255,.05)",
+   e.me?"<span style='color:#ffb14a'>You</span>":e.name,
+   e.depth+"m • "+e.relics+" relics",
+   "")).join("");
+}
+function friendsTab(){
+ return `
+ <input id="friend-code" placeholder="Enter a friend code (any name works here)" maxlength="14">
+ <button class="big-cta alt" style="margin-top:0" onclick="addFriend()">Add friend</button>
+ <div class="sec-label">YOUR FRIENDS</div>`+
+ (S.friends.length?S.friends.map((f,i)=>uRow(
+   `<div class="ava" style="background:hsl(${f.seed%360} 60% 45%)">${f.name[0].toUpperCase()}</div>`,"transparent",
+   f.name,"Best depth ~"+friendDepth(f)+"m",
+   `<button class="u-btn ad" onclick="raidFriend(${i})">${IC.raid("#fff")}Raid</button>`)).join("")
+  :`<div class="u-sub" style="text-align:center">No friends yet — add one above</div>`)+
+ `<div class="u-sub" style="text-align:center;margin-top:8px">In production this is Game Center friends + invite links.</div>`;
+}
+function feedTab(){
+ if(!S.feed.length) return `<div class="u-sub" style="text-align:center;padding:20px 0">No activity yet. Raid someone!</div>`;
+ return S.feed.map((e,i)=>{
+  if(e.type==="out") return uRow(IC.raid("#2ecc71"),"rgba(46,204,113,.12)",
+    "You raided "+e.name,"+"+fmt(e.amt)+" • "+ago(e.at),"");
+  if(e.type==="block") return uRow(IC.shield(),"rgba(122,215,255,.12)",
+    e.name+" attacked you","Blocked by your shield • "+ago(e.at),"");
+  return uRow(IC.raid("#ff5e62"),"rgba(255,94,98,.12)",
+    e.name+" raided you","−"+fmt(e.amt)+" • "+ago(e.at),
+    e.revenged?"":`<button class="u-btn ad" onclick="revengeRaid(${i})">Revenge</button>`);
+ }).join("");
+}
+window.openSocial=function(tab){
+ if(typeof tab==="string") socTab=tab;
+ const tb=(id,label)=>`<button class="tab ${socTab===id?"on":""}" onclick="openSocial('${id}')">${label}</button>`;
+ const body= socTab==="raid"?raidTab() : socTab==="top"?topTab() : socTab==="friends"?friendsTab() : feedTab();
+ openModal(closeBtn+`
+  <div class="m-title">Rivals</div>
+  <div class="m-sub">Simulated locally in this prototype — production uses a small backend + Game Center.</div>
+  <div class="tabs">${tb("raid","RAID")}${tb("top","TOP")}${tb("friends","FRIENDS")}${tb("feed","FEED")}</div>`+body);
+};
+window.raidNow=()=>{ if(currentTarget) startRaid(currentTarget,false); };
+window.scout=()=>{ currentTarget=rollTarget(); openSocial("raid"); };
+window.adTicket=()=>watchAd(()=>{ S.raidTickets=Math.min(S.raidTickets+1,5); toast("+1 raid ticket!"); openSocial("raid"); });
+window.buyShield=()=>{ if(S.gems<25||S.shields>=3) return; S.gems-=25; S.shields++; save(); openSocial("raid"); };
+window.buyShieldShop=()=>{ if(S.gems<25||S.shields>=3) return; S.gems-=25; S.shields++; save(); openShop(); };
+window.addFriend=()=>{
+ const el=document.getElementById("friend-code"), v=(el&&el.value||"").trim();
+ if(v.length<2){ toast("Code too short"); return; }
+ if(S.friends.some(f=>f.name.toLowerCase()===v.toLowerCase())){ toast("Already friends!"); return; }
+ S.friends.push({name:v, seed:hashStr(v)}); save(); toast(v+" added!"); openSocial("friends");
+};
+window.raidFriend=i=>{ const f=S.friends[i]; if(!f) return; currentTarget=rollTarget(f); openSocial("raid"); };
+window.revengeRaid=i=>{
+ const e=S.feed[i]; if(!e||e.type!=="in"||e.revenged) return;
+ e.revenged=true;
+ startRaid({name:e.name, seed:e.seed||hashStr(e.name),
+            stock:Math.max(e.amt*8, S.cash*0.8+600)}, true);
+};
 
 /* =================== Input =================== */
 function setHeld(d,el){
@@ -700,9 +978,11 @@ window.addEventListener("keydown",e=>{
 });
 window.addEventListener("keyup",()=>setHeld(null,null));
 document.getElementById("btn-upg").innerHTML+=IC.drill();
+document.getElementById("btn-social").innerHTML+=IC.raid();
 document.getElementById("btn-shop").innerHTML=IC.bag();
-document.getElementById("btn-upg").addEventListener("click",openUpgrades);
-document.getElementById("btn-shop").addEventListener("click",openShop);
+document.getElementById("btn-upg").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openUpgrades(); });
+document.getElementById("btn-shop").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openShop(); });
+document.getElementById("btn-social").addEventListener("click",()=>{ raid?endRaid():openSocial(); });
 
 /* =================== Render =================== */
 function biome(d){
@@ -837,12 +1117,19 @@ function hud(){
  elWrap.classList.toggle("low",frac<0.25);
  elLabel.textContent="ENERGY "+Math.floor(S.energy)+" / "+maxEnergy();
  let chips="";
+ if(raid) chips+='<div class="chip frenzy">RAID '+Math.max(0,Math.ceil(raid.endAt-nowS()))+"s • "+raid.vaults+" VAULTS • LOOT "+fmt(raid.loot)+"</div>";
  if(frenzyOn()) chips+='<div class="chip frenzy">FRENZY ×2 • '+dur(S.frenzyUntil-nowS())+"</div>";
  if(boostOn()) chips+='<div class="chip boost">×2 INCOME • '+dur(S.boostUntil-nowS())+"</div>";
- if(S.relics) chips+='<div class="chip relic">RELICS +'+Math.round(S.relics*BAL.relicBonus*100)+"%</div>";
+ if(!raid&&S.relics) chips+='<div class="chip relic">RELICS +'+Math.round(S.relics*BAL.relicBonus*100)+"%</div>";
  elChips.innerHTML=chips;
  if(nowS()-comboAt>5){ combo=0; document.getElementById("combo").classList.remove("show"); }
- document.getElementById("upg-badge").classList.toggle("on",
+ // raid ticket regen
+ while(S.raidTickets<3&&nowS()-S.ticketAt>=7200){ S.raidTickets++; S.ticketAt+=7200; }
+ if(S.raidTickets>=3) S.ticketAt=nowS();
+ document.getElementById("btn-social").classList.toggle("leave",!!raid);
+ document.getElementById("soc-badge").classList.toggle("on",
+   !raid&&S.feed.some(f=>f.type==="in"&&!f.revenged));
+ document.getElementById("upg-badge").classList.toggle("on", !raid&&
    S.cash>=Math.min(BAL.powerCost(S.up.power),BAL.tankCost(S.up.tank),BAL.regenCost(S.up.regen),BAL.roboCost(S.up.robo+1)));
 }
 
@@ -857,6 +1144,7 @@ function loop(t){
   if(k>=1){ drill.px=a.tx; drill.py=a.ty; drill.anim=null; }
  }
  tryDig(dt);
+ if(raid&&nowS()>raid.endAt) endRaid();
  // economy & energy
  S.energy=clamp(S.energy+BAL.regenRate(S.up.regen)*dt,0,maxEnergy());
  if(S.up.robo) S.cash+=roboRate()*incomeMult()*dt;

@@ -13,6 +13,16 @@ idle games.
 | 📺 Ads | 4 rewarded placements (offline ×2, 4h boost, comet mega-reward, free gems) |
 | 💰 IAP | Gem packs, limited-time starter pack, remove ads, permanent ×2 |
 
+> **Note — current design direction:** the design has since evolved into
+> **Gem Miner: Deep Descent**, a drill-mining game with real gameplay and a
+> social layer (async raids, leaderboard, friends). The playable prototype
+> lives in [`preview/index.html`](preview/index.html) and deploys to GitHub
+> Pages via `.github/workflows/pages.yml` (enable in Settings → Pages →
+> Source: *GitHub Actions*). The SwiftUI code in `GemMiner/` reflects the
+> earlier idle-tapper design; once the prototype's mechanics are approved
+> it will be ported to SpriteKit. The monetization layer
+> (`GemMiner/Monetization/`) carries over unchanged.
+
 Design rationale: [`docs/GAME_DESIGN.md`](docs/GAME_DESIGN.md) ·
 Monetization & compliance: [`docs/MONETIZATION.md`](docs/MONETIZATION.md)
 
