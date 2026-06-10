@@ -95,6 +95,16 @@
     background:#ffd24a; color:#321; font-size:11px; font-weight:800;
     display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
+  #btn-start {
+    position:absolute; left:50%; transform:translateX(-50%);
+    bottom:calc(env(safe-area-inset-bottom,10px) + 168px);
+    border:none; border-radius:18px; padding:14px 30px; z-index:11; cursor:pointer;
+    font-size:17px; font-weight:900; color:#fff; letter-spacing:.5px;
+    background:linear-gradient(135deg,#ff9d3f,#ff5e62);
+    box-shadow:0 8px 30px rgba(255,94,98,.5); display:none;
+    animation:startPulse 1.2s ease-in-out infinite alternate;
+  }
+  @keyframes startPulse { from{transform:translateX(-50%) scale(1)} to{transform:translateX(-50%) scale(1.06)} }
 
   .round-btn.leave { background:linear-gradient(160deg,#ff5e62,#b3232f); }
 
@@ -236,6 +246,7 @@
   <div id="banner"></div>
   <div id="toast"></div>
 
+  <button id="btn-start">START</button>
   <div id="controls">
     <div class="btn-col">
       <button class="round-btn" id="btn-upg"><span class="badge" id="upg-badge">!</span></button>
@@ -302,10 +313,10 @@ users:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-w
 const COLS=9;
 const T={EMPTY:0,DIRT:1,CLAY:2,STONE:3,OBSIDIAN:4,GOLD:5,EMERALD:6,RUBY:7,SAPPHIRE:8,DIAMOND:9,CHEST:10,ENERGY:11,BEDROCK:12,VAULT:13,MONSTER:14,RELIC:15};
 const TDEF={
- [T.DIRT]:    {hp:25, cost:3, top:"#9c6b33", bot:"#6f4a20"},
- [T.CLAY]:    {hp:45, cost:4, top:"#a8593a", bot:"#73381f"},
- [T.STONE]:   {hp:100,cost:7, top:"#6f7787", bot:"#454c5c"},
- [T.OBSIDIAN]:{hp:240,cost:12,top:"#473d63", bot:"#241d38"},
+ [T.DIRT]:    {hp:30, cost:3, top:"#9c6b33", bot:"#6f4a20"},
+ [T.CLAY]:    {hp:55, cost:4, top:"#a8593a", bot:"#73381f"},
+ [T.STONE]:   {hp:120,cost:7, top:"#6f7787", bot:"#454c5c"},
+ [T.OBSIDIAN]:{hp:280,cost:12,top:"#473d63", bot:"#241d38"},
  [T.GOLD]:    {hp:60, cost:5, gem:"#ffd24a", value:15,  name:"Gold"},
  [T.EMERALD]: {hp:90, cost:6, gem:"#3ddc84", value:40,  name:"Emerald"},
  [T.RUBY]:    {hp:130,cost:8, gem:"#ff4d6d", value:95,  name:"Ruby"},
@@ -319,7 +330,7 @@ const TDEF={
  [T.RELIC]:   {hp:200, cost:8, top:"#6f7787", bot:"#454c5c"},  // disguised as stone
 };
 const BAL={
- powerDmg:l=>70*Math.pow(1.45,l-1),
+ powerDmg:l=>62*Math.pow(1.45,l-1),
  powerCost:l=>60*Math.pow(2.3,l-1),
  tankMax:l=>100+30*(l-1),
  tankCost:l=>80*Math.pow(2.2,l-1),
@@ -340,7 +351,14 @@ const BAL={
  decoyCost:20, decoyMax:3,
  bombCost:12, bombMax:5,
  wingsDur:30,                       // upward flight powerup (from chests)
- monsterDrain:10,                   // energy/sec a monster bites back while fighting
+ monsterDrain:12,                   // energy/sec a monster bites back while fighting
+ levelTime:60,                      // each level: 60 seconds on the clock
+ levelDepth:n=>10+3*n,              // depth goal per level
+ levelCash:n=>Math.round(50*Math.pow(1.28,n-1)),  // collection goal per level
+ loseKeep:0.2, loseKeepAd:0.4,      // money kept on a failed level
+ winAdMult:2,                       // 200% of the pot when winning + ad
+ passWinBonus:1.25,                 // Battle Pass: +25% level winnings
+ passDailyGems:20,
 };
 
 // Drill skins: distinct body DESIGN + colors, not palette swaps.
@@ -352,6 +370,23 @@ const SKINS=[
  {id:"void",    name:"Void Orb",         cost:800,  design:"orb",     top:"#9b6bff", bot:"#3d1d78", glow:"#cf9bff"},
  {id:"gold",    name:"Golden Monarch",   cost:1500, design:"crown",   top:"#ffe27a", bot:"#d99a1f", glow:"#ffd24a"},
 ];
+
+// Elite drills: unlockable ONLY by spending relics. Distinct hulls, wings,
+// orbiting orbs, rings — visibly a tier above the gem skins.
+const ELITE=[
+ {id:"reaper",   name:"Obsidian Reaper",  relicCost:1,    design:"elite", hull:"diamond", top:"#3b3b4a", bot:"#0d0d14", glow:"#ff2d55", wings:"scythe", wingCol:"#16161f"},
+ {id:"seraph",   name:"Crystal Seraph",   relicCost:5,    design:"elite", hull:"diamond", top:"#eaf8ff", bot:"#8fd0ff", glow:"#bdeaff", wings:"ice",    wingCol:"#dff4ff"},
+ {id:"wyrm",     name:"Plasma Wyrm",      relicCost:20,   design:"elite", hull:"serpent", top:"#9bff8a", bot:"#0fae5f", glow:"#52ffa8", orbs:2},
+ {id:"titan",    name:"Storm Titan",      relicCost:50,   design:"elite", hull:"dragon",  top:"#cfd8ff", bot:"#4a5dbb", glow:"#7a8cff", spikes:true},
+ {id:"phoenix",  name:"Solar Phoenix",    relicCost:100,  design:"elite", hull:"diamond", top:"#ffd76a", bot:"#ff5e2e", glow:"#ffae3d", wings:"flame",  wingCol:"#ff7a2e"},
+ {id:"leviathan",name:"Frost Leviathan",  relicCost:200,  design:"elite", hull:"serpent", top:"#d8fbff", bot:"#3d7ba8", glow:"#9be8ff", wings:"ice",    wingCol:"#bfeffd", spikes:true},
+ {id:"nebula",   name:"Nebula Whale",     relicCost:400,  design:"elite", hull:"serpent", top:"#7a5cff", bot:"#241a55", glow:"#b39bff", orbs:3},
+ {id:"dragon",   name:"Dragon Engine",    relicCost:800,  design:"elite", hull:"dragon",  top:"#ff8a5c", bot:"#7a1d12", glow:"#ff6a3d", wings:"flame",  wingCol:"#ffb05c", spikes:true},
+ {id:"forge",    name:"Galaxy Forge",     relicCost:1500, design:"elite", hull:"core",    top:"#ffe27a", bot:"#b8541f", glow:"#ffd24a", ring:true, orbs:2},
+ {id:"omega",    name:"Omega Core",       relicCost:3000, design:"elite", hull:"core",    top:"#ffffff", bot:"#6a5cff", glow:"#9bffec", ring:true, orbs:3, spikes:true},
+];
+const ALLSKINS=SKINS.concat(ELITE);
+const skinById=id=>ALLSKINS.find(k=>k.id===id)||SKINS[0];
 
 /* =================== State =================== */
 let S={
@@ -365,6 +400,7 @@ let S={
  shieldUntil:0, shieldCdUntil:0, shieldAdCuts:0, decoys:0, bombs:1, wingsUntil:0,
  raidTickets:3, ticketAt:nowS(), raidsWon:0,
  skins:["default"], skin:"default",
+ level:1, maxLevel:1, battlePass:false,
  feed:[], friends:[{name:"Maya",seed:9117},{name:"Tom",seed:4203}],
 };
 try{ const raw=JSON.parse(localStorage.getItem("gm-deep")||"{}");
@@ -561,6 +597,8 @@ function bumpCombo(){
 
 /* =================== Game actions =================== */
 let held=null, modalOpen=false;
+// Level mode: digging only happens inside a timed level (or a raid)
+let inLevel=false, levelPot=0, levelMaxDepth=0, levelEndAt=0;
 function depthOf(row){ return Math.max(0,row+1); }
 
 function collect(tile,c,r){
@@ -569,7 +607,7 @@ function collect(tile,c,r){
  if(tile.t===T.MONSTER){
    const v=80*BAL.oreScale(d)*incomeMult();
    if(raid){ raid.loot+=v; } else {
-     S.cash+=v;
+     levelPot+=v;
      if(Math.random()<0.25&&S.bombs<BAL.bombMax){ S.bombs++; toast("The monster dropped a bomb!"); }
    }
    addFloat(cx,cy,"SLAIN! +"+fmt(v),"#ff4d6d",18);
@@ -615,7 +653,7 @@ function collect(tile,c,r){
  if(def.value){
    bumpCombo();
    const v=def.value*BAL.oreScale(d)*incomeMult()*comboMult()*(frenzyOn()?2:1);
-   S.cash+=v;
+   levelPot+=v;
    addFloat(cx,cy,"+"+fmt(v),def.gem,combo>=4?20:15);
    sparkle(cx,cy,def.gem,18);
    if(navigator.vibrate) navigator.vibrate(12);
@@ -624,6 +662,7 @@ function collect(tile,c,r){
 
 function tryDig(dt){
  if(drill.anim||modalOpen) return;
+ if(!inLevel&&!raid) return;   // digging only happens during a level or a raid
  const below=getTile(drill.col,drill.row+1);
  if(below&&below.t===T.EMPTY&&!held){ startMove(0,1,0.16); return; }
  if(!held) return;
@@ -668,8 +707,70 @@ function startMove(dx,dy,t){
  drill.anim={fx:drill.px,fy:drill.py,tx:(drill.col+dx)*TS,ty:(drill.row+dy)*TS,t:0,dur:t};
  drill.col+=dx; drill.row+=dy;
  const d=depthOf(drill.row);
- if(!raid&&d>S.bestRunDepth){ S.bestRunDepth=d; if(d>S.bestDepth) S.bestDepth=d; checkMilestones(d); }
+ if(!raid){
+   if(inLevel) levelMaxDepth=Math.max(levelMaxDepth,d);
+   if(d>S.bestDepth){ S.bestDepth=d; checkMilestones(d); }
+ }
 }
+
+/* =================== Level mode =================== */
+window.startLevel=function(){
+ if(inLevel||raid) return;
+ closeModal();
+ rows={};                                  // fresh shaft every attempt
+ drill.col=4; drill.row=-1; drill.anim=null;
+ drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42;
+ S.energy=maxEnergy(); S.frenzyUntil=0; S.wingsUntil=0;
+ levelPot=0; levelMaxDepth=0; combo=0;
+ inLevel=true; levelEndAt=nowS()+BAL.levelTime;
+ banner("LEVEL "+S.level,
+   "Collect "+fmt(BAL.levelCash(S.level))+" • reach "+BAL.levelDepth(S.level)+"m • "+BAL.levelTime+"s");
+ save();
+};
+function endLevel(win){
+ if(!inLevel) return;
+ inLevel=false; held=null;
+ const pot=levelPot, lvl=S.level;
+ window._lvClaim=m=>{
+  let gain=pot*m;
+  if(win&&S.battlePass) gain*=BAL.passWinBonus;
+  S.cash+=gain;
+  if(win){ S.level++; S.maxLevel=Math.max(S.maxLevel,S.level);
+   if(navigator.vibrate) navigator.vibrate(30); }
+  toast("+"+fmt(gain)+" banked");
+  save(); openLobby();
+ };
+ window._lvClaimAd=m=>watchAd(()=>window._lvClaim(m));
+ if(win){
+  openModal(`
+   <div class="m-title">LEVEL ${lvl} CLEAR!</div>
+   <div class="m-sub">${BAL.levelDepth(lvl)}m reached • goal collected with ${Math.max(0,Math.ceil(levelEndAt-nowS()))}s to spare</div>
+   <div class="reward-big">+${fmt(pot)}</div>
+   <button class="big-cta" onclick="_lvClaimAd(${BAL.winAdMult})">Claim ${BAL.winAdMult*100}% — watch ad</button>
+   <button class="big-cta alt" onclick="_lvClaim(1)">Claim 100%</button>`,true);
+ } else {
+  openModal(`
+   <div class="m-title">TIME'S UP</div>
+   <div class="m-sub">Level ${lvl}: ${fmt(pot)} of ${fmt(BAL.levelCash(lvl))} • ${levelMaxDepth}m of ${BAL.levelDepth(lvl)}m</div>
+   <div class="reward-big" style="filter:grayscale(.4)">${fmt(pot)}</div>
+   <div class="u-sub" style="text-align:center;margin-bottom:8px">Failed runs only keep part of the haul. Upgrade, then try again!</div>
+   <button class="big-cta" onclick="_lvClaimAd(${BAL.loseKeepAd})">Keep ${BAL.loseKeepAd*100}% — watch ad</button>
+   <button class="big-cta alt" onclick="_lvClaim(${BAL.loseKeep})">Keep ${BAL.loseKeep*100}%</button>`,true);
+ }
+ save();
+}
+window.openLobby=function(){
+ const n=S.level;
+ openModal(closeBtn+`
+  <div class="m-title">Level ${n}</div>
+  <div class="m-sub">${BAL.levelTime} seconds on the clock — harder every level</div>
+  ${uRow(IC.coin(),"rgba(255,210,74,.13)","Collect "+fmt(BAL.levelCash(n)),"Ores, monsters and chests fill the pot","")}
+  ${uRow(IC.depth(),"rgba(122,215,255,.13)","Reach "+BAL.levelDepth(n)+"m","Rock gets tougher the deeper you go","")}
+  ${uRow(IC.coin("#9fd8ff"),"rgba(58,139,255,.13)","Bank: "+fmt(S.cash),"Spend it on upgrades between levels","")}
+  <button class="big-cta" onclick="startLevel()">START LEVEL ${n}</button>
+  <button class="big-cta alt" onclick="openUpgrades()">Upgrades</button>
+  <button class="big-cta alt" onclick="openShop()">Shop</button>`);
+};
 
 /* =================== Milestones / banner =================== */
 const MILES=[25,50,100,150,200,300,400,500,700,1000];
@@ -692,6 +793,7 @@ function toast(msg){
 /* =================== Simulated rewarded ad =================== */
 let adBusy=false;
 function watchAd(onReward){
+ if(S.battlePass){ onReward(); save(); return; }   // Battle Pass: no ads, instant rewards
  if(adBusy) return; adBusy=true; held=null;
  const ov=document.getElementById("ad-overlay");
  document.getElementById("ad-ring").innerHTML=IC.play("#ff9d3f");
@@ -704,9 +806,10 @@ function watchAd(onReward){
 
 /* =================== Modals =================== */
 const modal=document.getElementById("modal"), card=document.getElementById("modal-card");
-function openModal(html){ card.innerHTML=html; modal.classList.add("open"); modalOpen=true; held=null; }
-function closeModal(){ modal.classList.remove("open"); modalOpen=false; }
-modal.addEventListener("pointerdown",e=>{ if(e.target===modal) closeModal(); });
+let modalLocked=false;
+function openModal(html,locked){ card.innerHTML=html; modal.classList.add("open"); modalOpen=true; held=null; modalLocked=!!locked; }
+function closeModal(){ modal.classList.remove("open"); modalOpen=false; modalLocked=false; }
+modal.addEventListener("pointerdown",e=>{ if(e.target===modal&&!modalLocked) closeModal(); });
 const closeBtn='<button class="m-close" onclick="closeModal()">✕</button>';
 
 function uRow(icon,iconBg,name,sub,btnHtml){
@@ -719,16 +822,19 @@ function costBtn(cost,fn,extra){
 }
 function skinRow(k){
  const owned=S.skins.includes(k.id), active=S.skin===k.id;
- const btn= active?`<button class="u-btn" disabled>Equipped</button>`
-  : owned?`<button class="u-btn" onclick="equipSkin('${k.id}')">Equip</button>`
-  : `<button class="u-btn gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
- const swatch=`<div style="width:26px;height:26px;border-radius:8px;background:linear-gradient(${k.top},${k.bot});box-shadow:0 0 10px ${k.glow||"transparent"}"></div>`;
- return uRow(swatch,"rgba(255,255,255,.06)",k.name,
-   active?"Equipped":owned?"Owned — tap to equip":"Unique hull design + colors",btn);
+ let btn;
+ if(active) btn=`<button class="u-btn" disabled>Equipped</button>`;
+ else if(owned) btn=`<button class="u-btn" onclick="equipSkin('${k.id}')">Equip</button>`;
+ else if(k.relicCost) btn=`<button class="u-btn" style="background:linear-gradient(135deg,#7b2ff7,#ff2d78)" ${S.relics>=k.relicCost?"":"disabled"} onclick="buySkinRelic('${k.id}')">${IC.relic("#fff")}${k.relicCost}</button>`;
+ else btn=`<button class="u-btn gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
+ const preview=`<img src="${skinThumb(k)}" style="width:42px;height:42px" alt="${k.name}">`;
+ return uRow(preview,k.relicCost?"rgba(123,47,247,.16)":"rgba(255,255,255,.06)",k.name,
+   active?"Equipped":owned?"Owned — tap to equip"
+   :k.relicCost?"ELITE — forged with relics, animated aura":"Unique hull design + colors",btn);
 }
 
 window.openUpgrades=function(){
- const relicsGain=Math.floor(S.bestRunDepth/BAL.prestigeDepth);
+ const relicsGain=Math.floor(S.maxLevel/10);
  openModal(closeBtn+`
   <div class="m-title">Upgrades</div><div class="m-sub">Dig deeper. Earn faster.</div>
   ${uRow(IC.drill(),"rgba(255,177,74,.15)","Drill Power &nbsp;Lv "+S.up.power,
@@ -744,9 +850,9 @@ window.openUpgrades=function(){
     S.up.robo?fmt(roboRate()*incomeMult())+"/sec, even while away":"Earn cash automatically, even offline",
     costBtn(BAL.roboCost(S.up.robo+1),"buyUp('robo')"))}
   <div class="sec-label">NEW SHAFT (PRESTIGE)</div>
-  <div class="u-sub" style="margin:0 4px 8px">Reach ${BAL.prestigeDepth}m in one run, then restart with permanent relics: +${BAL.relicBonus*100}% income each — but beware, every relic makes ALL rock ${BAL.relicWorldHp*100}% tougher. You keep gems &amp; purchases. Relics can be stolen in raids!</div>
+  <div class="u-sub" style="margin:0 4px 8px">Beat level 10 to prestige: +1 relic per 10 levels. Relics give +${BAL.relicBonus*100}% income each, unlock ELITE drills — but every relic makes ALL rock ${BAL.relicWorldHp*100}% tougher, and raids can steal them. Levels and upgrades reset; gems &amp; skins stay.</div>
   <button class="big-cta purple" ${relicsGain?"":"disabled"} onclick="doPrestige()">
-    ${relicsGain?"Open New Shaft: +"+relicsGain+" relic"+(relicsGain>1?"s":""):"Locked — best this run: "+S.bestRunDepth+"m / "+BAL.prestigeDepth+"m"}
+    ${relicsGain?"Open New Shaft: +"+relicsGain+" relic"+(relicsGain>1?"s":""):"Locked — best level: "+S.maxLevel+" / 10"}
     <span class="s">Current: ${S.relics} relics (+${Math.round(S.relics*BAL.relicBonus*100)}%)</span>
   </button>`);
 };
@@ -757,13 +863,14 @@ window.buyUp=function(k){
  save(); openUpgrades();
 };
 window.doPrestige=function(){
- const g=Math.floor(S.bestRunDepth/BAL.prestigeDepth); if(!g) return;
- if(!confirm("Open a new shaft? Cash, upgrades and depth reset. You gain +"+g+" relic(s), +"+(g*BAL.relicBonus*100)+"% forever.")) return;
+ const g=Math.floor(S.maxLevel/10); if(!g) return;
+ if(!confirm("Open a new shaft? Levels, cash and upgrades reset. You gain +"+g+" relic(s) — more income, ELITE drills... and much tougher rock.")) return;
  S.relics+=g; S.prestiges++; S.cash=0; S.up={power:1,tank:1,regen:1,robo:0};
- S.energy=100; S.bestRunDepth=0; S.milestone=0; S.boostUntil=0; S.frenzyUntil=0;
- for(const k of Object.keys(rows)) delete rows[k];
+ S.energy=100; S.level=1; S.maxLevel=1; S.milestone=0; S.boostUntil=0; S.frenzyUntil=0;
+ inLevel=false; levelPot=0;
+ rows={};
  drill.col=4; drill.row=-1; drill.px=drill.col*TS; drill.py=drill.row*TS; drill.anim=null;
- banner("NEW SHAFT","+"+g+" relics • +"+Math.round(S.relics*BAL.relicBonus*100)+"% forever"); save(); closeModal();
+ banner("NEW SHAFT","+"+g+" relics • +"+Math.round(S.relics*BAL.relicBonus*100)+"% income • harder rock"); save(); closeModal();
 };
 
 let shopTab="gear";
@@ -784,6 +891,11 @@ function gearTab(){
 function gemsTab(){
  const freeReady=nowS()>=S.freeGemsAt;
  return `
+  <div class="sec-label">BATTLE PASS — MONTHLY</div>
+  ${uRow(IC.trophy(),"rgba(255,210,74,.13)","Battle Pass",
+    S.battlePass?"Active — rewards are instant, no ads"
+    :"No ads (rewards instant) • +25% level wins • 16h offline cap • +"+BAL.passDailyGems+" gems daily",
+    `<button class="u-btn iap" ${S.battlePass?"disabled":""} onclick="iapPass()">${S.battlePass?"Active":"$7.99/mo"}</button>`)}
   <div class="sec-label">FREE — WATCH AN AD</div>
   ${uRow(IC.gem(),"rgba(255,95,158,.13)","Free Gems",
     freeReady?"+"+BAL.freeGems+" gems":"Next in "+dur(S.freeGemsAt-nowS()),
@@ -807,7 +919,11 @@ window.openShop=function(tab){
    <div class="u-sub" style="color:#cfd2ff">500 gems + 24h of ×2 income</div>
    <div class="timer">Offer ends in ${dur(starterLeft)}</div>
    <button class="u-btn iap" style="margin:0 auto" onclick="buyStarter()">$3.99</button></div>`:"";
- const body= shopTab==="skins"?`<div class="sec-label">DRILL SKINS — UNIQUE DESIGNS</div>`+SKINS.map(skinRow).join("")
+ const body= shopTab==="skins"?
+            `<div class="sec-label">GEM SKINS — UNIQUE DESIGNS</div>`+SKINS.map(skinRow).join("")
+            +`<div class="sec-label">ELITE RELIC DRILLS — YOU HAVE ✦ ${S.relics}</div>`
+            +`<div class="u-sub" style="margin:0 4px 8px">Animated, glowing, one-of-a-kind. Only relics can forge these.</div>`
+            +ELITE.map(skinRow).join("")
            : shopTab==="gems"?gemsTab()
            : gearTab();
  openModal(closeBtn+`
@@ -825,6 +941,7 @@ window.timeWarp=function(){ if(S.gems<50||!S.up.robo) return; S.gems-=50;
  const v=roboRate()*incomeMult()*7200; S.cash+=v; toast("+"+fmt(v)+" cash!"); save(); openShop(); };
 window.iapGems=function(n){ S.gems+=n; toast("+"+n+" gems (simulated purchase)"); save(); openShop(); };
 window.iapPerm=function(){ S.perm2x=true; toast("Permanent ×2 active!"); save(); openShop(); };
+window.iapPass=function(){ S.battlePass=true; toast("Battle Pass active! (simulated subscription)"); save(); openShop("gems"); };
 window.buyStarter=function(){ S.starterBought=true; S.gems+=500;
  S.boostUntil=Math.max(nowS(),S.boostUntil)+24*3600; toast("Starter Pack! +500 gems, 24h ×2"); save(); openShop(); };
 
@@ -854,7 +971,7 @@ function openChest(d){
  else { kind="frenzy";
    html=`<div class="reward-big">×2 FRENZY • 60s</div>`; }
  const grant=(mult)=>{
-   if(kind==="cash") S.cash+=amt*mult;
+   if(kind==="cash"){ if(inLevel) levelPot+=amt*mult; else S.cash+=amt*mult; }
    if(kind==="gems") S.gems+=Math.round(amt*mult);
    if(kind==="energy") S.energy=maxEnergy();
    if(kind==="wings") S.wingsUntil=nowS()+BAL.wingsDur*mult;
@@ -876,13 +993,14 @@ function openChest(d){
 /* =================== Offline & daily =================== */
 (function(){
  const away=(Date.now()-S.lastSeen)/1000;
+ const offCap=(S.battlePass?16:8)*3600;
  if(away>90&&S.up.robo>0){
-  const earned=roboRate()*incomeMult()*Math.min(away,8*3600)*0.5;
+  const earned=roboRate()*incomeMult()*Math.min(away,offCap)*0.5;
   if(earned>=1){
    window._offClaim=(m)=>{ S.cash+=earned*m; toast("+"+fmt(earned*m)+" cash"); save(); closeModal(); };
    setTimeout(()=>openModal(`
     <div class="m-title">Welcome back!</div>
-    <div class="m-sub">Your robo-miners worked for ${dur(Math.min(away,8*3600))}</div>
+    <div class="m-sub">Your robo-miners worked for ${dur(Math.min(away,offCap))}</div>
     <div class="reward-big">+${fmt(earned)}</div>
     <button class="big-cta" onclick="watchAd(()=>_offClaim(2))">Claim ×2 — watch ad</button>
     <button class="big-cta alt" onclick="_offClaim(1)">Claim</button>`),400);
@@ -894,7 +1012,9 @@ function openChest(d){
   const yest=new Date(Date.now()-864e5).toDateString();
   S.daily.streak=S.daily.last===yest?S.daily.streak+1:1;
   S.daily.last=today;
-  const g=Math.min(2*S.daily.streak,14); S.gems+=g;
+  let g=Math.min(2*S.daily.streak,14);
+  if(S.battlePass) g+=BAL.passDailyGems;
+  S.gems+=g;
   setTimeout(()=>banner("DAY "+S.daily.streak+" STREAK","+"+g+" gems • come back tomorrow for more"),1800);
   save();
  }
@@ -1025,7 +1145,7 @@ function useBomb(){
    if(!tile||tile.t===T.EMPTY||!isFinite(tile.hp)) continue;
    if(tile.t===T.CHEST&&!raid){
      const v=40*BAL.oreScale(depthOf(rr))*incomeMult();
-     S.cash+=v; addFloat(cc*TS+TS/2,rr*TS+TS/2,"+"+fmt(v),"#ffd24a",15);
+     levelPot+=v; addFloat(cc*TS+TS/2,rr*TS+TS/2,"+"+fmt(v),"#ffd24a",15);
    } else {
      collect(tile,cc,rr);
    }
@@ -1200,11 +1320,19 @@ window.buyDecoy=()=>{ if(purchaseDecoy()) openSocial("raid"); };
 window.buyDecoyShop=()=>{ if(purchaseDecoy()) openShop(); };
 window.buyBombShop=()=>{ if(purchaseBomb()) openShop(); };
 window.buySkin=id=>{
- const k=SKINS.find(x=>x.id===id);
- if(!k||S.skins.includes(id)||S.gems<k.cost) return;
- S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop();
+ const k=skinById(id);
+ if(!k||k.relicCost||S.skins.includes(id)||S.gems<k.cost) return;
+ S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop("skins");
 };
-window.equipSkin=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop(); } };
+window.buySkinRelic=id=>{
+ const k=ELITE.find(x=>x.id===id);
+ if(!k||S.skins.includes(id)||S.relics<k.relicCost) return;
+ if(!confirm("Forge the "+k.name+" for "+k.relicCost+" relic(s)? Spent relics reduce your income bonus.")) return;
+ S.relics-=k.relicCost; S.skins.push(id); S.skin=id;
+ banner("ELITE DRILL FORGED!",k.name+" is yours forever");
+ save(); openShop("skins");
+};
+window.equipSkin=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop("skins"); } };
 window.addFriend=()=>{
  const el=document.getElementById("friend-code"), v=(el&&el.value||"").trim();
  if(v.length<2){ toast("Code too short"); return; }
@@ -1270,10 +1398,20 @@ document.getElementById("btn-upg").innerHTML+=IC.drill();
 document.getElementById("btn-social").innerHTML+=IC.raid();
 document.getElementById("btn-shop").innerHTML=IC.bag();
 document.getElementById("btn-bomb").innerHTML+=IC.bolt("#ff9d3f");
-document.getElementById("btn-upg").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openUpgrades(); });
-document.getElementById("btn-shop").addEventListener("click",()=>{ if(raid){toast("Finish the raid first!");return;} openShop(); });
-document.getElementById("btn-social").addEventListener("click",()=>{ raid?endRaid():openSocial(); });
+document.getElementById("btn-upg").addEventListener("click",()=>{
+ if(raid){toast("Finish the raid first!");return;}
+ if(inLevel){toast("Upgrades unlock between levels!");return;}
+ openUpgrades(); });
+document.getElementById("btn-shop").addEventListener("click",()=>{
+ if(raid){toast("Finish the raid first!");return;}
+ if(inLevel){toast("The shop opens between levels!");return;}
+ openShop(); });
+document.getElementById("btn-social").addEventListener("click",()=>{
+ if(raid){endRaid();return;}
+ if(inLevel){toast("Finish the level first!");return;}
+ openSocial(); });
 document.getElementById("btn-bomb").addEventListener("click",useBomb);
+document.getElementById("btn-start").addEventListener("click",()=>{ if(!inLevel&&!raid) openLobby(); });
 
 /* =================== Render =================== */
 function biome(d){
@@ -1362,85 +1500,220 @@ function draw(){
  }
  ctx.globalAlpha=1;
 }
-function drawDrill(){
- const x=drill.px, y=drill.py-camY, s=TS;
- const [dx,dy]=drill.dir;
- const skin=SKINS.find(k=>k.id===S.skin)||SKINS[0];
- ctx.save(); ctx.translate(x+s/2,y+s/2);
+// Elite drills: layered hulls, energy wings, orbiting orbs, rings.
+// `t` animates them in-game; thumbnails pass t=0.
+function drawEliteWings(c,s,k,t){
+ const flap=Math.sin(t*3)*s*0.05;
+ c.save(); c.shadowColor=k.glow; c.shadowBlur=14; c.fillStyle=k.wingCol||k.glow;
+ for(const side of [-1,1]){
+  c.save(); c.scale(side,1);
+  c.beginPath();
+  if(k.wings==="scythe"){
+   c.moveTo(s*0.18,-s*0.05);
+   c.quadraticCurveTo(s*0.55,-s*0.34-flap, s*0.64,-s*0.02);
+   c.quadraticCurveTo(s*0.45,-s*0.14-flap, s*0.2,s*0.1);
+  } else if(k.wings==="flame"){
+   c.moveTo(s*0.16,0);
+   c.lineTo(s*0.5,-s*0.24-flap); c.lineTo(s*0.42,-flap*0.5);
+   c.lineTo(s*0.62,s*0.1); c.lineTo(s*0.2,s*0.12);
+  } else { // ice shards
+   c.moveTo(s*0.16,-s*0.02); c.lineTo(s*0.5,-s*0.28-flap); c.lineTo(s*0.34,0);
+   c.lineTo(s*0.6,s*0.06); c.lineTo(s*0.2,s*0.1);
+  }
+  c.closePath(); c.fill(); c.restore();
+ }
+ c.restore();
+}
+function drawEliteChassis(c,s,k,t){
+ c.save();
+ // hover glow base
+ c.save(); c.shadowColor=k.glow; c.shadowBlur=10; c.strokeStyle=k.glow;
+ c.globalAlpha=0.7; c.lineWidth=2.5;
+ c.beginPath(); c.ellipse(0,s*0.32,s*0.26,s*0.06,0,0,7); c.stroke(); c.restore();
+ if(k.wings) drawEliteWings(c,s,k,t);
+ // spikes behind hull
+ if(k.spikes){
+  c.fillStyle=k.bot;
+  for(let i=0;i<6;i++){ const a=-Math.PI*0.9+i*Math.PI*0.36;
+   const x=Math.cos(a)*s*0.26, y=-s*0.04+Math.sin(a)*s*0.26;
+   c.beginPath(); c.moveTo(x,y);
+   c.lineTo(x+Math.cos(a)*s*0.14,y+Math.sin(a)*s*0.14);
+   c.lineTo(x+Math.cos(a+0.5)*s*0.05,y+Math.sin(a+0.5)*s*0.05);
+   c.closePath(); c.fill(); }
+ }
+ // hull
+ c.shadowColor=k.glow; c.shadowBlur=18;
+ const bg=c.createLinearGradient(0,-s*0.36,0,s*0.26);
+ bg.addColorStop(0,k.top); bg.addColorStop(1,k.bot);
+ c.fillStyle=bg;
+ c.beginPath();
+ switch(k.hull){
+  case "diamond":
+   c.moveTo(0,-s*0.38); c.lineTo(s*0.3,-s*0.05); c.lineTo(s*0.18,s*0.28);
+   c.lineTo(-s*0.18,s*0.28); c.lineTo(-s*0.3,-s*0.05); c.closePath(); break;
+  case "serpent":
+   roundRect(c,-s*0.4,-s*0.16,s*0.8,s*0.34,s*0.17); break;
+  case "dragon":
+   c.moveTo(-s*0.34,s*0.22); c.lineTo(-s*0.3,-s*0.18); c.lineTo(-s*0.1,-s*0.32);
+   c.lineTo(s*0.22,-s*0.28); c.lineTo(s*0.38,-s*0.05); c.lineTo(s*0.3,s*0.22); c.closePath(); break;
+  default: // core
+   c.arc(0,-s*0.02,s*0.24,0,7);
+ }
+ c.fill(); c.shadowBlur=0;
+ c.strokeStyle="rgba(255,255,255,.3)"; c.lineWidth=1.5; c.stroke();
+ // hull details
+ if(k.hull==="diamond"){
+  c.strokeStyle="rgba(255,255,255,.35)"; c.lineWidth=1;
+  c.beginPath(); c.moveTo(0,-s*0.38); c.lineTo(0,s*0.28);
+  c.moveTo(-s*0.3,-s*0.05); c.lineTo(s*0.3,-s*0.05); c.stroke();
+ }
+ if(k.hull==="serpent"){
+  c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1.5;
+  for(let i=-1;i<=1;i++){ c.beginPath(); c.moveTo(i*s*0.18,-s*0.16); c.lineTo(i*s*0.18,s*0.18); c.stroke(); }
+ }
+ if(k.hull==="dragon"){
+  c.fillStyle=k.top;   // horns
+  c.beginPath(); c.moveTo(-s*0.24,-s*0.22); c.lineTo(-s*0.32,-s*0.44); c.lineTo(-s*0.12,-s*0.3); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(s*0.02,-s*0.28); c.lineTo(s*0.0,-s*0.46); c.lineTo(s*0.16,-s*0.3); c.closePath(); c.fill();
+  c.fillStyle="#ff4d6d";  // eye
+  c.beginPath(); c.arc(s*0.22,-s*0.1,s*0.05,0,7); c.fill();
+ }
+ if(k.hull==="core"){
+  c.fillStyle="rgba(255,255,255,.9)";
+  c.beginPath(); c.arc(0,-s*0.02,s*0.1,0,7); c.fill();
+ }
+ // rotating ring
+ if(k.ring){
+  c.save(); c.rotate(t*0.8); c.strokeStyle=k.glow; c.lineWidth=2.5;
+  c.shadowColor=k.glow; c.shadowBlur=8;
+  c.beginPath(); c.ellipse(0,-s*0.02,s*0.4,s*0.12,0,0,7); c.stroke(); c.restore();
+ }
+ // orbiting orbs
+ for(let i=0;i<(k.orbs||0);i++){
+  const a=t*2+i*Math.PI*2/(k.orbs||1);
+  const ox=Math.cos(a)*s*0.42, oy=-s*0.02+Math.sin(a)*s*0.18;
+  c.save(); c.shadowColor=k.glow; c.shadowBlur=10; c.fillStyle=k.glow;
+  c.beginPath(); c.arc(ox,oy,s*0.05,0,7); c.fill(); c.restore();
+ }
+ // cockpit gem
+ if(k.hull!=="core"){
+  c.fillStyle="rgba(255,255,255,.85)";
+  c.beginPath(); c.arc(-s*0.05,-s*0.08,s*0.07,0,7); c.fill();
+ }
+ c.restore();
+}
 
+// Chassis (ring/treads + hull + accessories + cockpit) for a given skin.
+// Shared by the in-game drill and the shop preview thumbnails.
+function drawDrillChassis(c,s,skin,t){
+ if(skin.design==="elite"){ drawEliteChassis(c,s,skin,t||0); return; }
  // hover ring or treads, depending on design
  if(skin.design==="orb"){
-  ctx.save(); ctx.shadowColor=skin.glow; ctx.shadowBlur=12;
-  ctx.strokeStyle=skin.glow; ctx.lineWidth=3;
-  ctx.beginPath(); ctx.ellipse(0,s*0.3,s*0.3,s*0.08,0,0,7); ctx.stroke(); ctx.restore();
+  c.save(); c.shadowColor=skin.glow; c.shadowBlur=12;
+  c.strokeStyle=skin.glow; c.lineWidth=3;
+  c.beginPath(); c.ellipse(0,s*0.3,s*0.3,s*0.08,0,0,7); c.stroke(); c.restore();
  } else {
-  ctx.fillStyle="#1c1d28"; roundRect(ctx,-s*0.38,s*0.18,s*0.76,s*0.22,s*0.1); ctx.fill();
-  ctx.strokeStyle="rgba(255,255,255,.2)"; ctx.lineWidth=1.5;
-  for(let i=-2;i<=2;i++){ ctx.beginPath(); ctx.moveTo(i*s*0.13,s*0.2); ctx.lineTo(i*s*0.13,s*0.38); ctx.stroke(); }
+  c.fillStyle="#1c1d28"; roundRect(c,-s*0.38,s*0.18,s*0.76,s*0.22,s*0.1); c.fill();
+  c.strokeStyle="rgba(255,255,255,.2)"; c.lineWidth=1.5;
+  for(let i=-2;i<=2;i++){ c.beginPath(); c.moveTo(i*s*0.13,s*0.2); c.lineTo(i*s*0.13,s*0.38); c.stroke(); }
  }
-
  // body shape per design
- const bg=ctx.createLinearGradient(0,-s*0.34,0,s*0.2);
+ const bg=c.createLinearGradient(0,-s*0.34,0,s*0.2);
  bg.addColorStop(0,skin.top); bg.addColorStop(1,skin.bot);
- if(skin.glow){ ctx.shadowColor=skin.glow; ctx.shadowBlur=14; }
- ctx.fillStyle=bg;
- ctx.beginPath();
+ if(skin.glow){ c.shadowColor=skin.glow; c.shadowBlur=14; }
+ c.fillStyle=bg;
+ c.beginPath();
  switch(skin.design){
   case "borer":   // angular hex hull
-   ctx.moveTo(-s*0.34,0); ctx.lineTo(-s*0.2,-s*0.3); ctx.lineTo(s*0.2,-s*0.3);
-   ctx.lineTo(s*0.34,0); ctx.lineTo(s*0.2,s*0.22); ctx.lineTo(-s*0.2,s*0.22); ctx.closePath();
+   c.moveTo(-s*0.34,0); c.lineTo(-s*0.2,-s*0.3); c.lineTo(s*0.2,-s*0.3);
+   c.lineTo(s*0.34,0); c.lineTo(s*0.2,s*0.22); c.lineTo(-s*0.2,s*0.22); c.closePath();
    break;
   case "striker": // low, sleek wedge
-   ctx.moveTo(-s*0.36,s*0.2); ctx.lineTo(-s*0.22,-s*0.16); ctx.lineTo(s*0.3,-s*0.16);
-   ctx.lineTo(s*0.36,s*0.2); ctx.closePath();
+   c.moveTo(-s*0.36,s*0.2); c.lineTo(-s*0.22,-s*0.16); c.lineTo(s*0.3,-s*0.16);
+   c.lineTo(s*0.36,s*0.2); c.closePath();
    break;
   case "crawler": // heavy slab hull
-   roundRect(ctx,-s*0.38,-s*0.24,s*0.76,s*0.46,s*0.05);
+   roundRect(c,-s*0.38,-s*0.24,s*0.76,s*0.46,s*0.05);
    break;
   case "orb":     // floating sphere
-   ctx.arc(0,-s*0.02,s*0.27,0,7);
+   c.arc(0,-s*0.02,s*0.27,0,7);
    break;
   default:        // rig & crown: rounded cab
-   roundRect(ctx,-s*0.32,-s*0.28,s*0.64,s*0.5,s*0.12);
+   roundRect(c,-s*0.32,-s*0.28,s*0.64,s*0.5,s*0.12);
  }
- ctx.fill(); ctx.shadowBlur=0;
- ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.5; ctx.stroke();
+ c.fill(); c.shadowBlur=0;
+ c.strokeStyle="rgba(0,0,0,.35)"; c.lineWidth=1.5; c.stroke();
 
  // design-specific accessories
  if(skin.design==="crown"){      // golden crown spikes
-  ctx.fillStyle=skin.top;
-  for(let i=-1;i<=1;i++){ ctx.beginPath();
-   ctx.moveTo(i*s*0.16-s*0.06,-s*0.28); ctx.lineTo(i*s*0.16,-s*0.44);
-   ctx.lineTo(i*s*0.16+s*0.06,-s*0.28); ctx.closePath(); ctx.fill(); }
+  c.fillStyle=skin.top;
+  for(let i=-1;i<=1;i++){ c.beginPath();
+   c.moveTo(i*s*0.16-s*0.06,-s*0.28); c.lineTo(i*s*0.16,-s*0.44);
+   c.lineTo(i*s*0.16+s*0.06,-s*0.28); c.closePath(); c.fill(); }
  }
  if(skin.design==="crawler"){    // twin exhaust pipes with embers
-  ctx.fillStyle="#5b2020";
-  ctx.fillRect(-s*0.22,-s*0.4,s*0.08,s*0.18); ctx.fillRect(s*0.1,-s*0.4,s*0.08,s*0.18);
-  ctx.fillStyle="#ffd54a";
-  const fl=Math.abs(Math.sin(drill.bitSpin*4))*s*0.06;
-  ctx.beginPath(); ctx.arc(-s*0.18,-s*0.42-fl,s*0.035,0,7); ctx.fill();
-  ctx.beginPath(); ctx.arc(s*0.14,-s*0.42-fl*0.7,s*0.035,0,7); ctx.fill();
+  c.fillStyle="#5b2020";
+  c.fillRect(-s*0.22,-s*0.4,s*0.08,s*0.18); c.fillRect(s*0.1,-s*0.4,s*0.08,s*0.18);
+  c.fillStyle="#ffd54a";
+  c.beginPath(); c.arc(-s*0.18,-s*0.44,s*0.035,0,7); c.fill();
+  c.beginPath(); c.arc(s*0.14,-s*0.43,s*0.035,0,7); c.fill();
  }
  if(skin.design==="striker"){    // tail fin
-  ctx.fillStyle=skin.bot;
-  ctx.beginPath(); ctx.moveTo(-s*0.3,-s*0.14); ctx.lineTo(-s*0.44,-s*0.34); ctx.lineTo(-s*0.22,-s*0.16);
-  ctx.closePath(); ctx.fill();
+  c.fillStyle=skin.bot;
+  c.beginPath(); c.moveTo(-s*0.3,-s*0.14); c.lineTo(-s*0.44,-s*0.34); c.lineTo(-s*0.22,-s*0.16);
+  c.closePath(); c.fill();
  }
  if(skin.design==="borer"){      // twin side cutters
-  ctx.fillStyle="#c8cdd8";
-  ctx.beginPath(); ctx.moveTo(-s*0.34,-s*0.06); ctx.lineTo(-s*0.46,0); ctx.lineTo(-s*0.34,s*0.06); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(s*0.34,-s*0.06); ctx.lineTo(s*0.46,0); ctx.lineTo(s*0.34,s*0.06); ctx.closePath(); ctx.fill();
+  c.fillStyle="#c8cdd8";
+  c.beginPath(); c.moveTo(-s*0.34,-s*0.06); c.lineTo(-s*0.46,0); c.lineTo(-s*0.34,s*0.06); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(s*0.34,-s*0.06); c.lineTo(s*0.46,0); c.lineTo(s*0.34,s*0.06); c.closePath(); c.fill();
  }
-
  // cockpit window (orb gets a core instead)
  if(skin.design==="orb"){
-  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(0,-s*0.02,s*0.08,0,7); ctx.fill();
+  c.fillStyle="#fff"; c.beginPath(); c.arc(0,-s*0.02,s*0.08,0,7); c.fill();
  } else {
-  ctx.fillStyle="#9fe8ff"; ctx.beginPath(); ctx.arc(-s*0.08,-s*0.07,s*0.11,0,7); ctx.fill();
-  ctx.fillStyle="rgba(255,255,255,.7)"; ctx.beginPath(); ctx.arc(-s*0.11,-s*0.1,s*0.04,0,7); ctx.fill();
+  c.fillStyle="#9fe8ff"; c.beginPath(); c.arc(-s*0.08,-s*0.07,s*0.11,0,7); c.fill();
+  c.fillStyle="rgba(255,255,255,.7)"; c.beginPath(); c.arc(-s*0.11,-s*0.1,s*0.04,0,7); c.fill();
  }
+}
+function drawDrillBit(c,s,skin,wob){
+ c.save();
+ if(skin.design==="crown") c.scale(1.18,1.18);
+ c.fillStyle="#c8cdd8";
+ c.beginPath(); c.moveTo(s*0.3,-s*0.12+wob); c.lineTo(s*0.56,wob*0.5); c.lineTo(s*0.3,s*0.12+wob); c.closePath(); c.fill();
+ c.strokeStyle="#5b6170"; c.lineWidth=1.5;
+ for(let i=0;i<3;i++){ const t=0.34+i*0.07;
+  c.beginPath(); c.moveTo(s*t,-s*0.1+wob); c.lineTo(s*t,s*0.1+wob); c.stroke(); }
+ c.restore();
+}
+
+// Pre-rendered shop thumbnails: the REAL drill, not a color swatch.
+const skinThumbs={};
+function skinThumb(skin){
+ if(skinThumbs[skin.id]) return skinThumbs[skin.id];
+ const tc=document.createElement("canvas");
+ tc.width=tc.height=112;
+ const c=tc.getContext("2d");
+ c.translate(50,56);            // nudge left so the bit fits
+ drawDrillChassis(c,64,skin,0);
+ drawDrillBit(c,64,skin,0);
+ skinThumbs[skin.id]=tc.toDataURL();
+ return skinThumbs[skin.id];
+}
+
+function drawDrill(){
+ const x=drill.px, y=drill.py-camY, s=TS;
+ const [dx,dy]=drill.dir;
+ const skin=skinById(S.skin);
+ // elite drills shed glowing aura particles
+ if(skin.design==="elite"&&Math.random()<0.25){
+  parts.push({x:drill.px+TS/2+rand(-TS*0.3,TS*0.3), y:drill.py+TS*0.8,
+    vx:rand(-12,12), vy:rand(-34,-12), life:0.6, max:0.6, size:rand(1.5,3), col:skin.glow, grav:0});
+ }
+ ctx.save(); ctx.translate(x+s/2,y+s/2);
+ drawDrillChassis(ctx,s,skin,performance.now()/1000);
  // status light (wings = green, frenzy = gold)
- if(skin.design!=="orb"&&skin.design!=="crown"){
+ if(skin.design!=="orb"&&skin.design!=="crown"&&skin.design!=="elite"){
   ctx.strokeStyle="#888"; ctx.beginPath(); ctx.moveTo(s*0.16,-s*0.28); ctx.lineTo(s*0.16,-s*0.4); ctx.stroke();
   ctx.fillStyle=wingsOn()?"#19e3b1":frenzyOn()?"#ffd54a":"#ff5252";
   ctx.beginPath(); ctx.arc(s*0.16,-s*0.42,s*0.045,0,7); ctx.fill();
@@ -1453,16 +1726,9 @@ function drawDrill(){
   ctx.beginPath(); ctx.moveTo(s*0.06,s*0.4); ctx.lineTo(s*0.12,s*0.55+j); ctx.lineTo(s*0.18,s*0.4); ctx.closePath(); ctx.fill();
   ctx.restore();
  }
-
- // drill bit toward movement direction (crown gets a bigger bit)
+ // drill bit toward movement direction
  ctx.save(); ctx.rotate(dy===-1?-Math.PI/2:dy===1?Math.PI/2:dx===-1?Math.PI:0);
- if(skin.design==="crown") ctx.scale(1.18,1.18);
- const wob=Math.sin(drill.bitSpin*6)*s*0.02;
- ctx.fillStyle="#c8cdd8";
- ctx.beginPath(); ctx.moveTo(s*0.3,-s*0.12+wob); ctx.lineTo(s*0.56,wob*0.5); ctx.lineTo(s*0.3,s*0.12+wob); ctx.closePath(); ctx.fill();
- ctx.strokeStyle="#5b6170"; ctx.lineWidth=1.5;
- for(let i=0;i<3;i++){ const t=0.34+i*0.07;
-  ctx.beginPath(); ctx.moveTo(s*t,-s*0.1+wob); ctx.lineTo(s*t,s*0.1+wob); ctx.stroke(); }
+ drawDrillBit(ctx,s,skin,Math.sin(drill.bitSpin*6)*s*0.02);
  ctx.restore();
  ctx.restore();
 }
@@ -1481,6 +1747,8 @@ function hud(){
  elWrap.classList.toggle("low",frac<0.25);
  elLabel.textContent="ENERGY "+Math.floor(S.energy)+" / "+maxEnergy();
  let chips="";
+ if(inLevel) chips+='<div class="chip frenzy">LV '+S.level+" • "+Math.max(0,Math.ceil(levelEndAt-nowS()))+"s • "
+   +fmt(levelPot)+"/"+fmt(BAL.levelCash(S.level))+" • "+levelMaxDepth+"/"+BAL.levelDepth(S.level)+"m</div>";
  if(raid) chips+='<div class="chip frenzy">RAID '+Math.max(0,Math.ceil(raid.endAt-nowS()))+"s • "+raid.vaults+" VAULTS • LOOT "+fmt(raid.loot)+"</div>";
  if(wingsOn()) chips+='<div class="chip frenzy">WINGS '+Math.max(0,Math.ceil(S.wingsUntil-nowS()))+"s</div>";
  if(frenzyOn()) chips+='<div class="chip frenzy">FRENZY ×2 • '+dur(S.frenzyUntil-nowS())+"</div>";
@@ -1496,6 +1764,9 @@ function hud(){
  const bombEl=document.getElementById("bomb-count");
  bombEl.textContent=S.bombs;
  document.getElementById("btn-bomb").style.opacity=S.bombs>0?1:0.45;
+ const startBtn=document.getElementById("btn-start");
+ startBtn.style.display=(!inLevel&&!raid&&!modalOpen)?"block":"none";
+ startBtn.textContent="START LEVEL "+S.level;
  document.getElementById("soc-badge").classList.toggle("on",
    !raid&&S.feed.some(f=>f.type==="in"&&!f.revenged));
  document.getElementById("upg-badge").classList.toggle("on", !raid&&
@@ -1514,6 +1785,10 @@ function loop(t){
  }
  tryDig(dt);
  if(raid&&nowS()>raid.endAt) endRaid();
+ if(inLevel){
+  if(levelPot>=BAL.levelCash(S.level)&&levelMaxDepth>=BAL.levelDepth(S.level)) endLevel(true);
+  else if(nowS()>levelEndAt) endLevel(false);
+ }
  // economy & energy
  S.energy=clamp(S.energy+BAL.regenRate(S.up.regen)*dt,0,maxEnergy());
  if(S.up.robo) S.cash+=roboRate()*incomeMult()*dt;
