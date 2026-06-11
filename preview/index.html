@@ -342,8 +342,6 @@ const BAL={
  tankCost:l=>80*Math.pow(2.2,l-1),
  regenRate:l=>0.9*(1+0.35*(l-1)),
  regenCost:l=>70*Math.pow(2.2,l-1),
- roboRate:(l,best)=>0.6*l*(1+best/40),
- roboCost:l=>120*Math.pow(2.4,l-1),
  oreScale:d=>1+d/38,
  boostDur:4*3600, frenzyDur:60,
  relicBonus:0.20, prestigeDepth:300,
@@ -426,7 +424,7 @@ const incomeMult=()=>(1+S.relics*BAL.relicBonus)*(boostOn()?2:1)*(S.perm2x?2:1);
 // relics no longer boost dig power — the world gets harder, you get richer
 const digPower=()=>BAL.powerDmg(S.up.power);
 const maxEnergy=()=>BAL.tankMax(S.up.tank);
-const roboRate=()=>BAL.roboRate(S.up.robo,S.bestDepth);
+const ticketCap=()=>S.battlePass?4:3;   // Battle Pass: one extra raid ticket slot
 
 /* =================== World gen =================== */
 let rows={};
@@ -603,8 +601,9 @@ function bumpCombo(){
 
 /* =================== Game actions =================== */
 let held=null, modalOpen=false;
-// Level mode: digging only happens inside a timed level (or a raid)
-let inLevel=false, levelPot=0, levelMaxDepth=0, levelEndAt=0;
+// Level mode: digging only happens inside a timed level (or a raid).
+// levelTimeLeft only ticks while actually playing — popups and ads pause it.
+let inLevel=false, levelPot=0, levelMaxDepth=0, levelTimeLeft=0;
 function depthOf(row){ return Math.max(0,row+1); }
 
 function collect(tile,c,r){
@@ -728,7 +727,7 @@ window.startLevel=function(){
  drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42;
  S.energy=maxEnergy(); S.frenzyUntil=0; S.wingsUntil=0;
  levelPot=0; levelMaxDepth=0; combo=0;
- inLevel=true; levelEndAt=nowS()+BAL.levelTime;
+ inLevel=true; levelTimeLeft=BAL.levelTime;
  banner("LEVEL "+S.level,
    "Collect "+fmt(BAL.levelCash(S.level))+" • reach "+BAL.levelDepth(S.level)+"m • "+BAL.levelTime+"s");
  save();
@@ -750,7 +749,7 @@ function endLevel(win){
  if(win){
   openModal(`
    <div class="m-title">LEVEL ${lvl} CLEAR!</div>
-   <div class="m-sub">${BAL.levelDepth(lvl)}m reached • goal collected with ${Math.max(0,Math.ceil(levelEndAt-nowS()))}s to spare</div>
+   <div class="m-sub">${BAL.levelDepth(lvl)}m reached • goal collected with ${Math.max(0,Math.ceil(levelTimeLeft))}s to spare</div>
    <div class="reward-big">+${fmt(pot)}</div>
    <button class="big-cta" onclick="_lvClaimAd(${BAL.winAdMult})">Claim ${BAL.winAdMult*100}% — watch ad</button>
    <button class="big-cta alt" onclick="_lvClaim(1)">Claim 100%</button>`,true);
@@ -852,9 +851,6 @@ window.openUpgrades=function(){
   ${uRow(IC.regen(),"rgba(122,215,255,.13)","Energy Regen &nbsp;Lv "+S.up.regen,
     BAL.regenRate(S.up.regen).toFixed(1)+"/sec → "+BAL.regenRate(S.up.regen+1).toFixed(1)+" next",
     costBtn(BAL.regenCost(S.up.regen),"buyUp('regen')"))}
-  ${uRow(IC.robot(),"rgba(207,155,255,.13)","Robo-Miners &nbsp;Lv "+S.up.robo,
-    S.up.robo?fmt(roboRate()*incomeMult())+"/sec, even while away":"Earn cash automatically, even offline",
-    costBtn(BAL.roboCost(S.up.robo+1),"buyUp('robo')"))}
   <div class="sec-label">NEW SHAFT (PRESTIGE)</div>
   <div class="u-sub" style="margin:0 4px 8px">Beat level 10 to prestige: +1 relic per 10 levels. Relics give +${BAL.relicBonus*100}% income each, unlock ELITE drills — but every relic makes ALL rock ${BAL.relicWorldHp*100}% tougher, and raids can steal them. Levels and upgrades reset; gems &amp; skins stay.</div>
   <button class="big-cta purple" ${relicsGain?"":"disabled"} onclick="doPrestige()">
@@ -863,7 +859,7 @@ window.openUpgrades=function(){
   </button>`);
 };
 window.buyUp=function(k){
- const cost=k==="robo"?BAL.roboCost(S.up.robo+1):BAL[k+"Cost"](S.up[k]);
+ const cost=BAL[k+"Cost"](S.up[k]);
  if(S.cash<cost) return;
  S.cash-=cost; S.up[k]++;
  save(); openUpgrades();
@@ -887,8 +883,6 @@ function gearTab(){
     `<button class="u-btn gems" ${S.gems>=30?"":"disabled"} onclick="gemRefillShop()">${IC.gem("#fff")}30</button>`)}
   ${uRow(IC.bolt("#ff9d3f"),"rgba(255,157,63,.13)","Bomb ("+S.bombs+"/"+BAL.bombMax+")","Blasts a 3×3 area instantly — works in raids too",
     `<button class="u-btn gems" ${S.gems>=BAL.bombCost&&S.bombs<BAL.bombMax?"":"disabled"} onclick="buyBombShop()">${IC.gem("#fff")}${BAL.bombCost}</button>`)}
-  ${uRow(IC.robot(),"rgba(207,155,255,.13)","2h Robo Time-Warp","Instantly +"+fmt(roboRate()*incomeMult()*7200)+" cash",
-    `<button class="u-btn gems" ${S.gems>=50&&S.up.robo?"":"disabled"} onclick="timeWarp()">${IC.gem("#fff")}50</button>`)}
   <div class="sec-label">RAID DEFENSE</div>
   ${uRow(IC.shield(),"rgba(122,215,255,.13)",shieldOn()?"Raid Shield (active)":"Raid Shield",shieldSub(),shieldBtns("shop"))}
   ${uRow(IC.chest("#cf9bff"),"rgba(207,155,255,.13)","Decoy Vault ("+S.decoys+"/"+BAL.decoyMax+")","Halves the loss from one incoming raid",
@@ -900,7 +894,7 @@ function gemsTab(){
   <div class="sec-label">BATTLE PASS — MONTHLY</div>
   ${uRow(IC.trophy(),"rgba(255,210,74,.13)","Battle Pass",
     S.battlePass?"Active — rewards are instant, no ads"
-    :"No ads (rewards instant) • +25% level wins • 16h offline cap • +"+BAL.passDailyGems+" gems daily",
+    :"No ads (rewards instant) • +25% level wins • 4th raid ticket slot • +"+BAL.passDailyGems+" gems daily",
     `<button class="u-btn iap" ${S.battlePass?"disabled":""} onclick="iapPass()">${S.battlePass?"Active":"$7.99/mo"}</button>`)}
   <div class="sec-label">FREE — WATCH AN AD</div>
   ${uRow(IC.gem(),"rgba(255,95,158,.13)","Free Gems",
@@ -943,8 +937,6 @@ window.freeGems=function(){ if(nowS()<S.freeGemsAt) return;
  watchAd(()=>{ S.gems+=BAL.freeGems; S.freeGemsAt=nowS()+BAL.freeGemsCd; toast("+"+BAL.freeGems+" gems!"); openShop(); }); };
 window.adBoost=function(){ watchAd(()=>{ S.boostUntil=Math.max(nowS(),S.boostUntil)+BAL.boostDur; toast("×2 income for 4h!"); openShop(); }); };
 window.gemRefill=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Energy refilled!"); save(); closeModal(); };
-window.timeWarp=function(){ if(S.gems<50||!S.up.robo) return; S.gems-=50;
- const v=roboRate()*incomeMult()*7200; S.cash+=v; toast("+"+fmt(v)+" cash!"); save(); openShop(); };
 window.iapGems=function(n){ S.gems+=n; toast("+"+n+" gems (simulated purchase)"); save(); openShop(); };
 window.iapPerm=function(){ S.perm2x=true; toast("Permanent ×2 active!"); save(); openShop(); };
 window.iapPass=function(){ S.battlePass=true; toast("Battle Pass active! (simulated subscription)"); save(); openShop("gems"); };
@@ -965,7 +957,7 @@ function openRefill(){
 
 function openChest(d){
  const roll=Math.random(); let html,kind,amt;
- if(roll<0.45){ kind="cash"; amt=Math.max(roboRate()*incomeMult()*120, 15*BAL.oreScale(d)*incomeMult()*12);
+ if(roll<0.45){ kind="cash"; amt=15*BAL.oreScale(d)*incomeMult()*12;
    html=`<div class="reward-big">+${fmt(amt)} cash</div>`; }
  else if(roll<0.55){ kind="gems"; amt=3+Math.floor(Math.random()*6);
    html=`<div class="reward-big">+${amt} gems</div>`; }
@@ -996,22 +988,9 @@ function openChest(d){
   <button class="big-cta alt" onclick="_chestClaim()">Claim</button>`);
 }
 
-/* =================== Offline & daily =================== */
+/* =================== Daily & away events (NO passive earnings) =================== */
 (function(){
  const away=(Date.now()-S.lastSeen)/1000;
- const offCap=(S.battlePass?16:8)*3600;
- if(away>90&&S.up.robo>0){
-  const earned=roboRate()*incomeMult()*Math.min(away,offCap)*0.5;
-  if(earned>=1){
-   window._offClaim=(m)=>{ S.cash+=earned*m; toast("+"+fmt(earned*m)+" cash"); save(); closeModal(); };
-   setTimeout(()=>openModal(`
-    <div class="m-title">Welcome back!</div>
-    <div class="m-sub">Your robo-miners worked for ${dur(Math.min(away,offCap))}</div>
-    <div class="reward-big">+${fmt(earned)}</div>
-    <button class="big-cta" onclick="watchAd(()=>_offClaim(2))">Claim ×2 — watch ad</button>
-    <button class="big-cta alt" onclick="_offClaim(1)">Claim</button>`),400);
-  }
- }
  if(away>3600&&Math.random()<0.5) setTimeout(incomingRaid,6000);
  const today=new Date().toDateString();
  if(S.daily.last!==today){
@@ -1040,7 +1019,7 @@ function rollTarget(friend){
  else { name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
         seed=(hashStr(name)+Math.floor(Date.now()/36e5))>>>0; }
  const rng=mulberry32(seed);
- const stock=Math.max(400, S.cash*(0.5+rng()*1.4)+roboRate()*incomeMult()*1800+rng()*600);
+ const stock=Math.max(400, S.cash*(0.5+rng()*1.4)+rng()*600);
  const relics=rng()<0.55?1:0;
  return {name, seed, stock, relics, shielded:!friend&&rng()<0.22};
 }
@@ -1141,7 +1120,9 @@ function incomingRaid(){
 
 // 3x3 bomb blast around the drill: collects everything, no energy cost.
 function useBomb(){
- if(modalOpen||S.bombs<1){ if(S.bombs<1) toast("No bombs — get them in the Shop"); return; }
+ if(modalOpen) return;
+ if(!inLevel&&!raid){ toast("Bombs only work during a level or raid"); return; }
+ if(S.bombs<1){ toast("No bombs — get them in the Shop"); return; }
  S.bombs--;
  shake=7;
  if(navigator.vibrate) navigator.vibrate(40);
@@ -1186,8 +1167,8 @@ function raidTab(){
  const t=currentTarget;
  const canRaid=S.raidTickets>0&&!t.shielded;
  return `
- ${uRow(IC.raid(),"rgba(255,122,92,.13)","Raid Tickets: "+S.raidTickets+"/3",
-   S.raidTickets>=3?"Full — go raid!":"+1 in "+dur(7200-(nowS()-S.ticketAt)),
+ ${uRow(IC.raid(),"rgba(255,122,92,.13)","Raid Tickets: "+S.raidTickets+"/"+ticketCap(),
+   S.raidTickets>=ticketCap()?"Full — go raid!":"+1 in "+dur(7200-(nowS()-S.ticketAt)),
    `<button class="u-btn ad" onclick="adTicket()">${IC.play()}+1</button>`)}
  ${uRow(IC.shield(),"rgba(122,215,255,.13)",
    shieldOn()?"Shield: ACTIVE":"Shield",
@@ -1753,7 +1734,7 @@ function hud(){
  elWrap.classList.toggle("low",frac<0.25);
  elLabel.textContent="ENERGY "+Math.floor(S.energy)+" / "+maxEnergy();
  let chips="";
- if(inLevel) chips+='<div class="chip frenzy">LV '+S.level+" • "+Math.max(0,Math.ceil(levelEndAt-nowS()))+"s • "
+ if(inLevel) chips+='<div class="chip frenzy">LV '+S.level+" • "+Math.max(0,Math.ceil(levelTimeLeft))+"s • "
    +fmt(levelPot)+"/"+fmt(BAL.levelCash(S.level))+" • "+levelMaxDepth+"/"+BAL.levelDepth(S.level)+"m</div>";
  if(raid) chips+='<div class="chip frenzy">RAID '+Math.max(0,Math.ceil(raid.endAt-nowS()))+"s • "+raid.vaults+" VAULTS • LOOT "+fmt(raid.loot)+"</div>";
  if(wingsOn()) chips+='<div class="chip frenzy">WINGS '+Math.max(0,Math.ceil(S.wingsUntil-nowS()))+"s</div>";
@@ -1764,8 +1745,8 @@ function hud(){
  elChips.innerHTML=chips;
  if(nowS()-comboAt>5){ combo=0; document.getElementById("combo").classList.remove("show"); }
  // raid ticket regen
- while(S.raidTickets<3&&nowS()-S.ticketAt>=7200){ S.raidTickets++; S.ticketAt+=7200; }
- if(S.raidTickets>=3) S.ticketAt=nowS();
+ while(S.raidTickets<ticketCap()&&nowS()-S.ticketAt>=7200){ S.raidTickets++; S.ticketAt+=7200; }
+ if(S.raidTickets>=ticketCap()) S.ticketAt=nowS();
  document.getElementById("btn-social").classList.toggle("leave",!!raid);
  const bombEl=document.getElementById("bomb-count");
  bombEl.textContent=S.bombs;
@@ -1776,7 +1757,7 @@ function hud(){
  document.getElementById("soc-badge").classList.toggle("on",
    !raid&&S.feed.some(f=>f.type==="in"&&!f.revenged));
  document.getElementById("upg-badge").classList.toggle("on", !raid&&
-   S.cash>=Math.min(BAL.powerCost(S.up.power),BAL.tankCost(S.up.tank),BAL.regenCost(S.up.regen),BAL.roboCost(S.up.robo+1)));
+   S.cash>=Math.min(BAL.powerCost(S.up.power),BAL.tankCost(S.up.tank),BAL.regenCost(S.up.regen)));
 }
 
 /* =================== Main loop =================== */
@@ -1792,12 +1773,12 @@ function loop(t){
  tryDig(dt);
  if(raid&&nowS()>raid.endAt) endRaid();
  if(inLevel){
+  if(!modalOpen&&!adBusy) levelTimeLeft-=dt;   // popups & ads pause the clock
   if(levelPot>=BAL.levelCash(S.level)&&levelMaxDepth>=BAL.levelDepth(S.level)) endLevel(true);
-  else if(nowS()>levelEndAt) endLevel(false);
+  else if(levelTimeLeft<=0) endLevel(false);
  }
- // economy & energy
+ // energy only — there is no passive income; every coin is earned in a level or raid
  S.energy=clamp(S.energy+BAL.regenRate(S.up.regen)*dt,0,maxEnergy());
- if(S.up.robo) S.cash+=roboRate()*incomeMult()*dt;
  // camera
  const target=drill.py-H*0.42;
  camY+=(Math.max(target,-H*0.78)-camY)*Math.min(1,dt*6);
