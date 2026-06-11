@@ -43,7 +43,26 @@
   }
   #energy-wrap.low #energy-label { color:#3a0d05; }
 
-  #chips { position:absolute; top:calc(env(safe-area-inset-top,8px) + 76px); left:0; right:0;
+  /* level bars: time draining + collection goal */
+  .mini-wrap {
+    position:absolute; left:12px; right:12px; height:13px; border-radius:999px;
+    background:rgba(10,12,24,.72); border:1px solid rgba(255,255,255,.09);
+    overflow:hidden; z-index:10; display:none;
+  }
+  #time-wrap { top:calc(env(safe-area-inset-top,8px) + 71px); }
+  #goal-wrap { top:calc(env(safe-area-inset-top,8px) + 87px); }
+  .mini-bar { height:100%; border-radius:999px; }
+  #time-bar { background:linear-gradient(90deg,#ffd24a,#ff9d3f); box-shadow:0 0 10px rgba(255,157,63,.5); }
+  #time-wrap.low #time-bar { background:linear-gradient(90deg,#ff5252,#ff2d55); animation:blink .4s infinite alternate; }
+  #goal-bar { background:linear-gradient(90deg,#ffd24a,#ffe98a); box-shadow:0 0 10px rgba(255,210,74,.5); width:0; }
+  #goal-wrap.done #goal-bar { background:linear-gradient(90deg,#2ecc71,#7cf2c8); }
+  .mini-label {
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:800; color:#2a1a05; letter-spacing:.4px;
+  }
+  #time-wrap.low .mini-label { color:#fff; }
+
+  #chips { position:absolute; top:calc(env(safe-area-inset-top,8px) + 106px); left:0; right:0;
     display:flex; justify-content:center; gap:6px; z-index:10; pointer-events:none; }
   .chip { font-size:11px; font-weight:800; padding:4px 10px; border-radius:999px; backdrop-filter:blur(6px); }
   .chip.frenzy { background:rgba(255,200,40,.22); color:#ffd54a; border:1px solid rgba(255,213,74,.4); }
@@ -146,6 +165,7 @@
     background:rgba(20,24,40,.95); border:1px solid rgba(255,255,255,.14); color:#fff;
     font-weight:700; font-size:13px; padding:9px 16px; border-radius:999px; z-index:30;
     display:none; white-space:nowrap; box-shadow:0 4px 18px rgba(0,0,0,.5);
+    top:calc(env(safe-area-inset-top,8px) + 134px);
   }
 
   /* ---------- Modals ---------- */
@@ -241,6 +261,8 @@
     <div class="pill" id="gems-pill"></div>
   </div>
   <div id="energy-wrap"><div id="energy-bar"></div><div id="energy-label"></div></div>
+  <div class="mini-wrap" id="time-wrap"><div class="mini-bar" id="time-bar"></div><div class="mini-label" id="time-label"></div></div>
+  <div class="mini-wrap" id="goal-wrap"><div class="mini-bar" id="goal-bar"></div><div class="mini-label" id="goal-label"></div></div>
   <div id="chips"></div>
   <div id="combo"></div>
   <div id="banner"></div>
@@ -603,7 +625,8 @@ function bumpCombo(){
 let held=null, modalOpen=false;
 // Level mode: digging only happens inside a timed level (or a raid).
 // levelTimeLeft only ticks while actually playing — popups and ads pause it.
-let inLevel=false, levelPot=0, levelMaxDepth=0, levelTimeLeft=0;
+// levelBonus = mystery-box cash, paid out ONLY if the level is won.
+let inLevel=false, levelPot=0, levelBonus=0, levelMaxDepth=0, levelTimeLeft=0;
 function depthOf(row){ return Math.max(0,row+1); }
 
 function collect(tile,c,r){
@@ -726,7 +749,7 @@ window.startLevel=function(){
  drill.col=4; drill.row=-1; drill.anim=null;
  drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42;
  S.energy=maxEnergy(); S.frenzyUntil=0; S.wingsUntil=0;
- levelPot=0; levelMaxDepth=0; combo=0;
+ levelPot=0; levelBonus=0; levelMaxDepth=0; combo=0;
  inLevel=true; levelTimeLeft=BAL.levelTime;
  banner("LEVEL "+S.level,
    "Collect "+fmt(BAL.levelCash(S.level))+" • reach "+BAL.levelDepth(S.level)+"m • "+BAL.levelTime+"s");
@@ -735,9 +758,9 @@ window.startLevel=function(){
 function endLevel(win){
  if(!inLevel) return;
  inLevel=false; held=null;
- const pot=levelPot, lvl=S.level;
+ const pot=levelPot, bonus=levelBonus, lvl=S.level;
  window._lvClaim=m=>{
-  let gain=pot*m;
+  let gain=(win?pot+bonus:pot)*m;   // mystery-box bonus only pays out on a WIN
   if(win&&S.battlePass) gain*=BAL.passWinBonus;
   S.cash+=gain;
   if(win){ S.level++; S.maxLevel=Math.max(S.maxLevel,S.level);
@@ -750,7 +773,8 @@ function endLevel(win){
   openModal(`
    <div class="m-title">LEVEL ${lvl} CLEAR!</div>
    <div class="m-sub">${BAL.levelDepth(lvl)}m reached • goal collected with ${Math.max(0,Math.ceil(levelTimeLeft))}s to spare</div>
-   <div class="reward-big">+${fmt(pot)}</div>
+   <div class="reward-big">+${fmt(pot+bonus)}</div>
+   ${bonus>0?`<div class="u-sub" style="text-align:center;color:#ffd24a;font-weight:800">includes mystery box bonus +${fmt(bonus)}</div>`:""}
    <button class="big-cta" onclick="_lvClaimAd(${BAL.winAdMult})">Claim ${BAL.winAdMult*100}% — watch ad</button>
    <button class="big-cta alt" onclick="_lvClaim(1)">Claim 100%</button>`,true);
  } else {
@@ -758,6 +782,7 @@ function endLevel(win){
    <div class="m-title">TIME'S UP</div>
    <div class="m-sub">Level ${lvl}: ${fmt(pot)} of ${fmt(BAL.levelCash(lvl))} • ${levelMaxDepth}m of ${BAL.levelDepth(lvl)}m</div>
    <div class="reward-big" style="filter:grayscale(.4)">${fmt(pot)}</div>
+   ${bonus>0?`<div class="u-sub" style="text-align:center;color:#ff5e62;font-weight:800">mystery box bonus forfeited: −${fmt(bonus)}</div>`:""}
    <div class="u-sub" style="text-align:center;margin-bottom:8px">Failed runs only keep part of the haul. Upgrade, then try again!</div>
    <button class="big-cta" onclick="_lvClaimAd(${BAL.loseKeepAd})">Keep ${BAL.loseKeepAd*100}% — watch ad</button>
    <button class="big-cta alt" onclick="_lvClaim(${BAL.loseKeep})">Keep ${BAL.loseKeep*100}%</button>`,true);
@@ -845,10 +870,10 @@ window.openUpgrades=function(){
   ${uRow(IC.drill(),"rgba(255,177,74,.15)","Drill Power &nbsp;Lv "+S.up.power,
     fmt(digPower())+" dmg/sec → "+fmt(BAL.powerDmg(S.up.power+1))+" next",
     costBtn(BAL.powerCost(S.up.power),"buyUp('power')"))}
-  ${uRow(IC.tank(),"rgba(25,227,177,.13)","Energy Tank &nbsp;Lv "+S.up.tank,
+  ${uRow(IC.tank(),"rgba(25,227,177,.13)","Fuel Tank &nbsp;Lv "+S.up.tank,
     "Max "+maxEnergy()+" → "+BAL.tankMax(S.up.tank+1)+" next",
     costBtn(BAL.tankCost(S.up.tank),"buyUp('tank')"))}
-  ${uRow(IC.regen(),"rgba(122,215,255,.13)","Energy Regen &nbsp;Lv "+S.up.regen,
+  ${uRow(IC.regen(),"rgba(122,215,255,.13)","Fuel Regen &nbsp;Lv "+S.up.regen,
     BAL.regenRate(S.up.regen).toFixed(1)+"/sec → "+BAL.regenRate(S.up.regen+1).toFixed(1)+" next",
     costBtn(BAL.regenCost(S.up.regen),"buyUp('regen')"))}
   <div class="sec-label">NEW SHAFT (PRESTIGE)</div>
@@ -879,7 +904,7 @@ let shopTab="gear";
 function gearTab(){
  return `
   <div class="sec-label">DRILL SUPPLIES</div>
-  ${uRow(IC.bolt(),"rgba(25,227,177,.13)","Full Energy Refill","Back to "+maxEnergy()+" instantly",
+  ${uRow(IC.bolt(),"rgba(25,227,177,.13)","Full Fuel Refill","Back to "+maxEnergy()+" instantly",
     `<button class="u-btn gems" ${S.gems>=30?"":"disabled"} onclick="gemRefillShop()">${IC.gem("#fff")}30</button>`)}
   ${uRow(IC.bolt("#ff9d3f"),"rgba(255,157,63,.13)","Bomb ("+S.bombs+"/"+BAL.bombMax+")","Blasts a 3×3 area instantly — works in raids too",
     `<button class="u-btn gems" ${S.gems>=BAL.bombCost&&S.bombs<BAL.bombMax?"":"disabled"} onclick="buyBombShop()">${IC.gem("#fff")}${BAL.bombCost}</button>`)}
@@ -932,11 +957,11 @@ window.openShop=function(tab){
   ${starter}
   <div class="tabs">${tb("gear","GEAR")}${tb("skins","SKINS")}${tb("gems","GEMS")}</div>`+body);
 };
-window.gemRefillShop=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Energy refilled!"); save(); openShop(); };
+window.gemRefillShop=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Fuel refilled!"); save(); openShop(); };
 window.freeGems=function(){ if(nowS()<S.freeGemsAt) return;
  watchAd(()=>{ S.gems+=BAL.freeGems; S.freeGemsAt=nowS()+BAL.freeGemsCd; toast("+"+BAL.freeGems+" gems!"); openShop(); }); };
 window.adBoost=function(){ watchAd(()=>{ S.boostUntil=Math.max(nowS(),S.boostUntil)+BAL.boostDur; toast("×2 income for 4h!"); openShop(); }); };
-window.gemRefill=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Energy refilled!"); save(); closeModal(); };
+window.gemRefill=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Fuel refilled!"); save(); closeModal(); };
 window.iapGems=function(n){ S.gems+=n; toast("+"+n+" gems (simulated purchase)"); save(); openShop(); };
 window.iapPerm=function(){ S.perm2x=true; toast("Permanent ×2 active!"); save(); openShop(); };
 window.iapPass=function(){ S.battlePass=true; toast("Battle Pass active! (simulated subscription)"); save(); openShop("gems"); };
@@ -945,11 +970,11 @@ window.buyStarter=function(){ S.starterBought=true; S.gems+=500;
 
 function openRefill(){
  openModal(closeBtn+`
-  <div class="m-title">Out of Energy!</div>
-  <div class="m-sub">Your drill needs power to keep digging.</div>
+  <div class="m-title">Out of Fuel!</div>
+  <div class="m-sub">Your drill needs fuel to keep digging.</div>
   <div style="display:flex;justify-content:center;margin:6px 0 2px">
     <div style="width:64px;height:64px">${IC.bolt("#ff5252")}</div></div>
-  <button class="big-cta" onclick="watchAd(()=>{S.energy=maxEnergy();toast('Energy refilled!');closeModal();})">
+  <button class="big-cta" onclick="watchAd(()=>{S.energy=maxEnergy();toast('Fuel refilled!');closeModal();})">
     Full refill — watch ad <span class="s">free, instant</span></button>
   <button class="big-cta alt" ${S.gems>=30?"":"disabled"} onclick="gemRefill()">Refill for 30 gems</button>
   <button class="big-cta alt" onclick="closeModal()">Wait — regenerates ${BAL.regenRate(S.up.regen).toFixed(1)}/sec</button>`);
@@ -962,14 +987,16 @@ function openChest(d){
  else if(roll<0.55){ kind="gems"; amt=3+Math.floor(Math.random()*6);
    html=`<div class="reward-big">+${amt} gems</div>`; }
  else if(roll<0.7){ kind="energy";
-   html=`<div class="reward-big">Full Energy!</div>`; }
+   html=`<div class="reward-big">Full Fuel!</div>`; }
  else if(roll<0.85){ kind="wings";
    html=`<div class="reward-big">WINGS • ${BAL.wingsDur}s</div>
    <div class="u-sub" style="text-align:center">Fly upward through your tunnels!</div>`; }
  else { kind="frenzy";
    html=`<div class="reward-big">×2 FRENZY • 60s</div>`; }
  const grant=(mult)=>{
-   if(kind==="cash"){ if(inLevel) levelPot+=amt*mult; else S.cash+=amt*mult; }
+   // chest cash is a BONUS: it never fills the goal bar and is only
+   // paid out if the level is won
+   if(kind==="cash"){ if(inLevel) levelBonus+=amt*mult; else S.cash+=amt*mult; }
    if(kind==="gems") S.gems+=Math.round(amt*mult);
    if(kind==="energy") S.energy=maxEnergy();
    if(kind==="wings") S.wingsUntil=nowS()+BAL.wingsDur*mult;
@@ -1132,7 +1159,7 @@ function useBomb(){
    if(!tile||tile.t===T.EMPTY||!isFinite(tile.hp)) continue;
    if(tile.t===T.CHEST&&!raid){
      const v=40*BAL.oreScale(depthOf(rr))*incomeMult();
-     levelPot+=v; addFloat(cc*TS+TS/2,rr*TS+TS/2,"+"+fmt(v),"#ffd24a",15);
+     levelBonus+=v; addFloat(cc*TS+TS/2,rr*TS+TS/2,"BONUS +"+fmt(v),"#ffd24a",15);
    } else {
      collect(tile,cc,rr);
    }
@@ -1732,10 +1759,22 @@ function hud(){
  const frac=S.energy/maxEnergy();
  elBar.style.width=(frac*100)+"%";
  elWrap.classList.toggle("low",frac<0.25);
- elLabel.textContent="ENERGY "+Math.floor(S.energy)+" / "+maxEnergy();
+ elLabel.textContent="FUEL "+Math.floor(S.energy)+" / "+maxEnergy();
+ // level bars: draining time + collection goal
+ const tWrap=document.getElementById("time-wrap"), gWrap=document.getElementById("goal-wrap");
+ tWrap.style.display=gWrap.style.display=inLevel?"block":"none";
+ if(inLevel){
+  const tl=Math.max(0,levelTimeLeft);
+  document.getElementById("time-bar").style.width=(tl/BAL.levelTime*100)+"%";
+  document.getElementById("time-label").textContent="TIME "+Math.ceil(tl)+"s";
+  tWrap.classList.toggle("low",tl<10);
+  const goal=BAL.levelCash(S.level), gf=clamp(levelPot/goal,0,1);
+  document.getElementById("goal-bar").style.width=(gf*100)+"%";
+  document.getElementById("goal-label").textContent="GOAL "+fmt(levelPot)+" / "+fmt(goal);
+  gWrap.classList.toggle("done",gf>=1);
+ }
  let chips="";
- if(inLevel) chips+='<div class="chip frenzy">LV '+S.level+" • "+Math.max(0,Math.ceil(levelTimeLeft))+"s • "
-   +fmt(levelPot)+"/"+fmt(BAL.levelCash(S.level))+" • "+levelMaxDepth+"/"+BAL.levelDepth(S.level)+"m</div>";
+ if(inLevel) chips+='<div class="chip frenzy">LV '+S.level+" • DEPTH "+levelMaxDepth+"/"+BAL.levelDepth(S.level)+"m</div>";
  if(raid) chips+='<div class="chip frenzy">RAID '+Math.max(0,Math.ceil(raid.endAt-nowS()))+"s • "+raid.vaults+" VAULTS • LOOT "+fmt(raid.loot)+"</div>";
  if(wingsOn()) chips+='<div class="chip frenzy">WINGS '+Math.max(0,Math.ceil(S.wingsUntil-nowS()))+"s</div>";
  if(frenzyOn()) chips+='<div class="chip frenzy">FRENZY ×2 • '+dur(S.frenzyUntil-nowS())+"</div>";
