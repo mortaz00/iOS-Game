@@ -276,6 +276,12 @@ window.addEventListener("error",function(e){
  d.textContent="Error: "+(e.message||e.type)+(e.filename?" @"+e.lineno:"");
  document.body.appendChild(d);
 });
+// Tester backdoor: open the game with ?reset in the URL to wipe the save.
+// No in-game reset exists for players.
+if(location.search.indexOf("reset")>-1){
+ try{ localStorage.removeItem("gm-deep"); }catch(e){}
+ location.replace(location.pathname);
+}
 /* =================== Helpers =================== */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
@@ -769,13 +775,7 @@ window.openLobby=function(){
   ${uRow(IC.coin("#9fd8ff"),"rgba(58,139,255,.13)","Bank: "+fmt(S.cash),"Spend it on upgrades between levels","")}
   <button class="big-cta" onclick="startLevel()">START LEVEL ${n}</button>
   <button class="big-cta alt" onclick="openUpgrades()">Upgrades</button>
-  <button class="big-cta alt" onclick="openShop()">Shop</button>
-  <button style="background:none;border:none;color:#667;font-size:12px;margin-top:14px;width:100%;cursor:pointer" onclick="resetAll()">Reset ALL progress — start from zero</button>`);
-};
-window.resetAll=function(){
- if(!confirm("Erase ALL progress (levels, cash, gems, relics, skins) and start from zero? This cannot be undone.")) return;
- try{ localStorage.removeItem("gm-deep"); }catch(e){}
- location.reload();
+  <button class="big-cta alt" onclick="openShop()">Shop</button>`);
 };
 
 /* =================== Milestones / banner =================== */
