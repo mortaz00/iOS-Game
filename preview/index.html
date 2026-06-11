@@ -766,7 +766,11 @@ function endLevel(win){
   if(win){ S.level++; S.maxLevel=Math.max(S.maxLevel,S.level);
    if(navigator.vibrate) navigator.vibrate(30); }
   toast("+"+fmt(gain)+" banked");
-  save(); closeModal();   // back to the main screen; START button reappears
+  save(); closeModal();
+  // back to the main screen: fresh surface view with the START button
+  rows={};
+  drill.col=4; drill.row=-1; drill.anim=null;
+  drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42; held=null;
  };
  window._lvClaimAd=m=>watchAd(()=>window._lvClaim(m));
  if(win){
