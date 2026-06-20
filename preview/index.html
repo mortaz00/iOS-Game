@@ -36,6 +36,15 @@
     background:rgba(10,12,24,.6); backdrop-filter:blur(6px); padding:10px 18px; border-radius:14px;
     border:1px solid rgba(255,255,255,.12); white-space:nowrap; }
   #ctrlhint b { color:#7ad7ff; }
+  #rankbadge { font-size:12px; font-weight:900; margin-top:4px; letter-spacing:.5px; }
+  #slowbtn { position:absolute; top:calc(env(safe-area-inset-top,8px) + 64px); left:50%; transform:translateX(-50%);
+    z-index:11; display:none; align-items:center; gap:7px; padding:8px 16px; border-radius:999px; cursor:pointer;
+    background:rgba(20,40,80,.75); backdrop-filter:blur(8px); border:1px solid rgba(120,200,255,.5);
+    color:#cfe8ff; font-weight:900; font-size:14px; box-shadow:0 2px 14px rgba(60,140,255,.4); }
+  #slowbtn svg { width:18px; height:18px; }
+  #slowbtn.active { background:rgba(60,140,255,.9); color:#fff; animation:slowpulse .6s ease-in-out infinite alternate; }
+  #slowbtn.cant { opacity:.45; }
+  @keyframes slowpulse { from{transform:translateX(-50%) scale(1)} to{transform:translateX(-50%) scale(1.07)} }
 
   /* Start screen */
   #start { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -115,9 +124,11 @@
     <div>
       <div id="dist">0<small>m</small></div>
       <div id="best"></div>
+      <div id="rankbadge"></div>
     </div>
     <div class="pill" id="gem-pill"></div>
   </div>
+  <button id="slowbtn"></button>
   <div id="combo"></div>
   <div id="announce"></div>
   <div id="ctrlhint">Press &amp; <b>HOLD</b> = steer ►&nbsp;&nbsp;|&nbsp;&nbsp;<b>LET GO</b> = steer ◄</div>
@@ -167,6 +178,7 @@ bag:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-wid
 trophy:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 5H4.5a3.5 3.5 0 003.5 5M16 5h3.5a3.5 3.5 0 01-3.5 5"/><path d="M12 13v4M8 21h8M10 17h4v4h-4z"/></svg>`,
 gear:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#8d93b8'}" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke-linecap="round"/></svg>`,
 play:c=>`<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="${c||'#fff'}"/></svg>`,
+slow:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#cfe8ff'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12M6 21h12M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9"/></svg>`,
 };
 
 /* ===== characters (skins) ===== */
@@ -187,7 +199,7 @@ const skinTint=sk=>sk.glow||sk.accent||"#7ad7ff";
 
 /* ===== state / save ===== */
 let S={ gems:30, best:0, runs:0, skin:"rookie", skins:["rookie"],
-        shieldLvl:0, magnetLvl:0, removeAds:false, battlePass:false, haptics:true,
+        shieldLvl:0, magnetLvl:0, removeAds:false, battlePass:false, haptics:true, sound:true,
         daily:{last:0,streak:0} };
 try{ const r=JSON.parse(localStorage.getItem("gm-dive")||"{}"); S={...S,...r,skins:r.skins||["rookie"],daily:{...S.daily,...(r.daily||{})}}; }catch(e){}
 // keep only valid skin ids (drops old drill ids from earlier saves)
@@ -205,14 +217,27 @@ const BAL={
  spikeBase:0.004, spikeGain:0.000015,           // spike spawn chance per slice
  gemChance:0.07, nearMiss:13,
  drillR:14, pxPerM:7,                           // 7 world px = 1 meter of depth
- biome:500,                                     // metres per biome
+ slowCost:15, slowDur:5, slowFactor:0.4,        // slow-mo power: gems, seconds, speed factor
  shieldFromLvl:l=>l,                            // hits absorbed at run start
  shieldCost:l=>Math.round(120*Math.pow(2.2,l)),
  magnetCost:l=>Math.round(100*Math.pow(2.3,l)),
 };
-const biomeAt=m=>[["#0a1830","#040a14"],["#10210f","#06120a"],["#241026","#120618"],
- ["#0d1d2e","#05101c"],["#2a1208","#140804"],["#0f0f1f","#06060f"]][Math.floor(m/BAL.biome)%6];
-const biomeName=m=>["The Crust","Mossfall","Crystal Deep","Drowned Caves","Magma Veins","The Abyss"][Math.floor(m/BAL.biome)%6];
+// Ranks = the maps. Each is a distinct high-contrast theme so walls and
+// reefs read instantly against the falling character.
+const RANKS=[
+ {m:0,     name:"Rookie",     bg:["#0b1226","#05080f"], wall:"#2b4a7e", edge:"#8fb6ff", spike:"#ff4d4d"},
+ {m:2500,  name:"Wood",       bg:["#1d1308","#0b0703"], wall:"#7a5026", edge:"#e2a55a", spike:"#ff5a2c"},
+ {m:5000,  name:"Bronze",     bg:["#211204","#0d0702"], wall:"#a05f22", edge:"#ffbf6b", spike:"#ff3b3b"},
+ {m:8000,  name:"Silver",     bg:["#0f151c","#06090e"], wall:"#7c8ea3", edge:"#eef4ff", spike:"#ff4d6a"},
+ {m:12000, name:"Gold",       bg:["#1f1804","#0d0a02"], wall:"#b08e1f", edge:"#ffe27a", spike:"#ff5a2c"},
+ {m:17000, name:"Platinum",   bg:["#07201e","#03100e"], wall:"#2fa096", edge:"#86f6ea", spike:"#ff4d8a"},
+ {m:23000, name:"Diamond",    bg:["#0a1838","#050c1c"], wall:"#3f6ae0", edge:"#a6d6ff", spike:"#ff4d9a"},
+ {m:30000, name:"Challenger", bg:["#1c0824","#0e0414"], wall:"#8a36c4", edge:"#ecaaff", spike:"#ff3b6b"},
+];
+function rankAt(m){ let r=RANKS[0]; for(const x of RANKS) if(m>=x.m) r=x; return r; }
+function rankIndex(m){ let i=0; for(let k=0;k<RANKS.length;k++) if(m>=RANKS[k].m) i=k; return i; }
+// gem revive cost triples every 1000m: 50, 150, 450, ...
+const reviveGemCost=m=>Math.round(50*Math.pow(3, Math.max(1,Math.floor(m/1000))-1));
 
 /* ===== canvas ===== */
 const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
@@ -252,40 +277,41 @@ function sliceAt(worldY){ const i=Math.floor(worldY/BAL.sliceH); if(i<0) return 
 /* ===== run state ===== */
 let mode="menu";  // menu | playing | dead
 let drill={x:W/2, vx:0, y:0, tilt:0};
-let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedRevive=false;
-let holding=false, shake=0, invuln=0, hintT=0;
+let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedAdRevive=false;
+let holding=false, shake=0, invuln=0, hintT=0, slowmoT=0, lastRank=0;
 const parts=[], trail=[], pops=[];
-let beatBest=false, lastBiome=0;
+let beatBest=false;
 
 function startRun(){
  document.getElementById("start").classList.add("hide");
  resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
  drill={x:W/2, vx:0, y:0, tilt:0};
  speed=BAL.baseSpeed; depthM=0; runGems=0; combo=0; comboT=0;
- shields=BAL.shieldFromLvl(S.shieldLvl); usedRevive=false; invuln=1.4; shake=0;
- beatBest=false; lastBiome=0; hintT=S.runs<4?7:3;   // show control hint, longer for new players
+ shields=BAL.shieldFromLvl(S.shieldLvl); usedAdRevive=false; invuln=1.4; shake=0;
+ beatBest=false; lastRank=0; slowmoT=0; hintT=S.runs<4?7:3;   // hint longer for new players
  parts.length=trail.length=pops.length=0;
  mode="playing"; holding=false;
+ initAudio(); resumeAudio();
  S.runs++; save();
 }
 function die(){
  if(invuln>0) return;
- if(shields>0){ shields--; invuln=1.0; shake=12; haptic(30); sparkBurst(drill.x,DRILLY,"#7ad7ff",24); announce("SHIELD!","#7ad7ff"); return; }
- mode="dead"; shake=20; haptic(60);
+ if(shields>0){ shields--; invuln=1.0; shake=12; haptic(30); SFX.shield(); sparkBurst(drill.x,DRILLY,"#7ad7ff",24); announce("SHIELD!","#7ad7ff"); return; }
+ mode="dead"; shake=20; haptic(60); SFX.crash();
  for(let i=0;i<40;i++) parts.push({x:drill.x,y:DRILLY,vx:rand(-260,260),vy:rand(-320,120),life:rand(.5,1.1),max:1.1,size:rand(2,6),col:Math.random()<.5?"#ffb14a":"#888"});
  if(depthM>S.best){ S.best=Math.floor(depthM); }
  save();
  setTimeout(showDeath,650);
 }
-function revive(){
- const sl=sliceAt(drill.y); drill.x=sl.cx; drill.vx=0; invuln=2.2; usedRevive=true;
+function revive(sec){
+ const sl=sliceAt(drill.y); drill.x=sl.cx; drill.vx=0; invuln=sec||5; slowmoT=0;
  // clear spikes just ahead so revive isn't instant death
  for(let i=0;i<slices.length;i++){ if(slices[i]&&Math.abs(i*BAL.sliceH-drill.y)<H*0.7){ slices[i].li=0; slices[i].ri=0; } }
- mode="playing"; closeModal();
+ SFX.revive(); announce("REVIVED!","#7dffa8"); mode="playing"; closeModal();
 }
 
 /* ===== input ===== */
-cv.addEventListener("pointerdown",e=>{ if(mode==="playing"){ holding=true; } });
+cv.addEventListener("pointerdown",e=>{ initAudio(); resumeAudio(); if(mode==="playing"){ holding=true; } });
 window.addEventListener("pointerup",()=>{ holding=false; });
 window.addEventListener("pointercancel",()=>{ holding=false; });
 document.getElementById("taptodive").addEventListener("click",startRun);
@@ -294,6 +320,33 @@ window.addEventListener("keyup",e=>{ if(e.code==="Space") holding=false; });
 
 /* ===== effects ===== */
 function haptic(ms){ if(S.haptics&&navigator.vibrate) navigator.vibrate(ms); }
+
+/* ===== sound (procedural WebAudio — no files) ===== */
+let actx=null;
+function initAudio(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+function resumeAudio(){ if(actx&&actx.state==="suspended") actx.resume(); }
+function beep(freq,d,type,vol,sweep){ if(!actx||!S.sound) return; const t=actx.currentTime;
+ const o=actx.createOscillator(), g=actx.createGain(); o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
+ if(sweep) o.frequency.exponentialRampToValueAtTime(Math.max(1,sweep),t+d);
+ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.012);
+ g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d+0.03); }
+function noise(d,vol){ if(!actx||!S.sound) return; const t=actx.currentTime; const len=Math.floor(actx.sampleRate*d);
+ const b=actx.createBuffer(1,len,actx.sampleRate), data=b.getChannelData(0);
+ for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+ const s=actx.createBufferSource(); s.buffer=b; const g=actx.createGain(); g.gain.value=vol||0.3;
+ s.connect(g); g.connect(actx.destination); s.start(t); }
+function arp(notes,step,type,vol){ notes.forEach((f,i)=>setTimeout(()=>beep(f,0.18,type||"square",vol||0.18),i*(step||90))); }
+const SFX={
+ gem:()=>beep(900,0.1,"triangle",0.16,1500),
+ near:()=>beep(320,0.14,"sawtooth",0.1,1000),
+ crash:()=>{ noise(0.45,0.32); beep(180,0.45,"sawtooth",0.22,38); },
+ shield:()=>beep(680,0.22,"square",0.2,420),
+ slow:()=>beep(760,0.5,"sine",0.22,150),
+ rankup:()=>arp([523,659,784,1047],95,"square",0.2),
+ best:()=>arp([784,988,1318],100,"triangle",0.2),
+ revive:()=>arp([392,523,659,880],80,"sine",0.2),
+ ui:()=>beep(540,0.05,"square",0.1),
+};
 function sparkBurst(x,y,col,n){ for(let i=0;i<n;i++){ const a=rand(0,7),s=rand(40,200);
   parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(.3,.7),max:.7,size:rand(1.5,3.5),col}); } }
 function pop(x,y,txt,col){ pops.push({x,y,txt,col,life:.9}); }
@@ -303,10 +356,13 @@ function announce(txt,col){ const a=document.getElementById("announce"); a.textC
 /* ===== update ===== */
 function update(dt){
  if(mode!=="playing"){ shake=Math.max(0,shake-dt*30); return; }
- // speed ramps gently with depth
- speed=Math.min(BAL.speedCap, BAL.baseSpeed+depthM*BAL.speedGain);
- drill.y+=speed*dt;
- depthM=drill.y/BAL.pxPerM;
+ // difficulty (speed, narrowing) keyed to actual world depth — stays fair
+ const worldDepth=drill.y/BAL.pxPerM;
+ speed=Math.min(BAL.speedCap, BAL.baseSpeed+worldDepth*BAL.speedGain);
+ if(slowmoT>0) slowmoT-=dt;
+ const eff=slowmoT>0?speed*BAL.slowFactor:speed;   // slow-mo eases the scroll...
+ drill.y+=eff*dt;
+ depthM+=speed*dt/BAL.pxPerM;                       // ...but meters still bank at full speed
  // lateral steer speed scales with how fast you're falling — faster fall,
  // faster (and snappier) sideways movement
  const spd=speed/BAL.baseSpeed;                         // 1.0 at start, grows with depth
@@ -329,7 +385,7 @@ function update(dt){
  else if(invuln<=0){
   // near-miss reward
   const clr=Math.min(drill.x-leftPass, rightPass-drill.x);
-  if(clr<BAL.nearMiss){ if(Math.random()<dt*30){ combo++; comboT=nowS();
+  if(clr<BAL.nearMiss){ if(Math.random()<dt*30){ combo++; comboT=nowS(); SFX.near();
     sparkBurst(drill.x,DRILLY,"#ffd54a",4); if(combo%5===0) announce("NEAR MISS x"+combo+"!","#ffd54a"); } }
  }
  // gems (with magnet)
@@ -340,15 +396,15 @@ function update(dt){
   if(S.magnetLvl>0 && Math.abs(gy-DRILLY)<magR && Math.abs(s.gem.x-drill.x)<magR) s.gem.x=lerp(s.gem.x,drill.x,0.25);
   if(Math.abs(gy-DRILLY)<BAL.drillR+10 && Math.abs(s.gem.x-drill.x)<BAL.drillR+12){
    s.gem.taken=true; const mult=1+Math.min(combo,10)*0.5; const g=Math.round(1*mult);
-   runGems+=g; pop(drill.x,DRILLY-20,"+"+g,"#ff5f9e"); sparkBurst(s.gem.x,gy,"#ff5f9e",10); haptic(8);
+   runGems+=g; pop(drill.x,DRILLY-20,"+"+g,"#ff5f9e"); sparkBurst(s.gem.x,gy,"#ff5f9e",10); haptic(8); SFX.gem();
   }
  }
  // combo decay
  if(combo>0 && nowS()-comboT>1.4) combo=0;
- // biome banner
- const b=Math.floor(depthM/BAL.biome); if(b>lastBiome){ lastBiome=b; announce(biomeName(depthM),"#7ad7ff"); haptic(20); }
+ // rank-up (each rank is a new map)
+ const ri=rankIndex(depthM); if(ri>lastRank){ lastRank=ri; announce("RANK: "+RANKS[ri].name.toUpperCase(),RANKS[ri].edge); haptic(35); SFX.rankup(); shake=8; }
  // personal best
- if(!beatBest && S.best>0 && depthM>S.best){ beatBest=true; announce("NEW BEST!","#ffd24a"); haptic(40); }
+ if(!beatBest && S.best>0 && depthM>S.best){ beatBest=true; announce("NEW BEST!","#ffd24a"); haptic(40); SFX.best(); }
  shake=Math.max(0,shake-dt*30);
  // particles
  for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=600*dt; if(p.life<=0) parts.splice(i,1); }
@@ -359,8 +415,8 @@ function update(dt){
 function draw(){
  const sx=shake>.2?rand(-shake,shake):0, sy=shake>.2?rand(-shake,shake):0;
  ctx.setTransform(dpr,0,0,dpr,sx*dpr,sy*dpr);
- const [c1,c2]=biomeAt(depthM);
- const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,c1); bg.addColorStop(1,c2);
+ const rk=rankAt(depthM);
+ const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,rk.bg[0]); bg.addColorStop(1,rk.bg[1]);
  ctx.fillStyle=bg; ctx.fillRect(-20,-20,W+40,H+40);
  // speed lines
  const sp=speed/BAL.speedCap;
@@ -370,28 +426,33 @@ function draw(){
 
  const top=drill.y-DRILLY, i0=Math.floor(top/BAL.sliceH)-1, i1=Math.floor((top+H)/BAL.sliceH)+1;
  genTo(i1+2);
- // walls as filled regions
- ctx.fillStyle="#11131f";
+ const yOf=i=>DRILLY+(i*BAL.sliceH-drill.y);
+ // walls — bright rank colour, filled toward the SAFE inner edge (no spike inset),
+ // so the dark gap reads clearly and reefs sit on top in danger colour
+ ctx.fillStyle=rk.wall;
  ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(0,H+20);
- for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; const y=DRILLY+(i*BAL.sliceH-drill.y); ctx.lineTo(s.cx-s.half+s.li,y); }
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; ctx.lineTo(s.cx-s.half,yOf(i)); }
  ctx.lineTo(0,-20); ctx.closePath(); ctx.fill();
  ctx.beginPath(); ctx.moveTo(W,-20); ctx.lineTo(W,H+20);
- for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; const y=DRILLY+(i*BAL.sliceH-drill.y); ctx.lineTo(s.cx+s.half-s.ri,y); }
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; ctx.lineTo(s.cx+s.half,yOf(i)); }
  ctx.lineTo(W,-20); ctx.closePath(); ctx.fill();
- // wall edges glow
- ctx.strokeStyle="rgba(120,160,255,.25)"; ctx.lineWidth=3;
- ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y); const x=s.cx-s.half+s.li; i===i0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
- ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y); const x=s.cx+s.half-s.ri; i===i0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
- // spike highlights (red tips)
- ctx.fillStyle="rgba(255,80,90,.85)";
- for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y);
-  if(s.li>2){ ctx.beginPath(); ctx.arc(s.cx-s.half+s.li,y,2.4,0,7); ctx.fill(); }
-  if(s.ri>2){ ctx.beginPath(); ctx.arc(s.cx+s.half-s.ri,y,2.4,0,7); ctx.fill(); } }
+ // bright high-contrast inner edge
+ ctx.strokeStyle=rk.edge; ctx.lineWidth=3.5; ctx.shadowColor=rk.edge; ctx.shadowBlur=8;
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const x=s.cx-s.half; i===i0?ctx.moveTo(x,yOf(i)):ctx.lineTo(x,yOf(i));} ctx.stroke();
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const x=s.cx+s.half; i===i0?ctx.moveTo(x,yOf(i)):ctx.lineTo(x,yOf(i));} ctx.stroke();
+ ctx.shadowBlur=0;
+ // reefs (spikes) — bright danger-coloured teeth jutting into the tunnel
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=yOf(i);
+  if(s.li>3){ ctx.fillStyle=rk.spike; ctx.beginPath();
+   ctx.moveTo(s.cx-s.half,y); ctx.lineTo(s.cx-s.half+s.li,y+BAL.sliceH*0.5); ctx.lineTo(s.cx-s.half,y+BAL.sliceH); ctx.closePath(); ctx.fill();
+   ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=1; ctx.stroke(); }
+  if(s.ri>3){ ctx.fillStyle=rk.spike; ctx.beginPath();
+   ctx.moveTo(s.cx+s.half,y); ctx.lineTo(s.cx+s.half-s.ri,y+BAL.sliceH*0.5); ctx.lineTo(s.cx+s.half,y+BAL.sliceH); ctx.closePath(); ctx.fill();
+   ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=1; ctx.stroke(); } }
  // gems
- for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s||!s.gem||s.gem.taken)continue; const y=DRILLY+(i*BAL.sliceH-drill.y);
-  drawGem(s.gem.x,y,7,"#ff5f9e"); }
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s||!s.gem||s.gem.taken)continue; drawGem(s.gem.x,yOf(i),7,"#ff5f9e"); }
  // best line
- if(S.best>0 && mode==="playing"){ const by=DRILLY+(S.best*BAL.pxPerM-drill.y); if(by>-20&&by<H+20){
+ if(S.best>0 && mode==="playing"){ const by=DRILLY+(S.best-depthM)*BAL.pxPerM; if(by>-20&&by<H+20){
   ctx.strokeStyle="rgba(255,210,74,.6)"; ctx.lineWidth=2; ctx.setLineDash([8,6]);
   ctx.beginPath(); ctx.moveTo(0,by); ctx.lineTo(W,by); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle="#ffd24a"; ctx.font="800 11px sans-serif"; ctx.textAlign="left"; ctx.fillText("BEST "+S.best+"m",6,by-4); } }
@@ -416,6 +477,10 @@ function draw(){
  for(const p of pops){ ctx.globalAlpha=clamp(p.life,0,1); ctx.font="900 16px sans-serif"; ctx.textAlign="center";
   ctx.fillStyle=p.col; ctx.fillText(p.txt,p.x,p.y-(0.9-p.life)*40); }
  ctx.globalAlpha=1; ctx.textAlign="left";
+ // slow-mo tint
+ if(slowmoT>0){ const a=0.10+0.04*Math.sin(performance.now()/120);
+  ctx.fillStyle="rgba(90,170,255,"+a+")"; ctx.fillRect(-20,-20,W+40,H+40);
+  ctx.strokeStyle="rgba(120,200,255,.5)"; ctx.lineWidth=4; ctx.strokeRect(2,2,W-4,H-4); }
 }
 function drawGem(x,y,r,col){ ctx.save(); ctx.translate(x,y); ctx.shadowColor=col; ctx.shadowBlur=10;
  ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.8,-r*.2); ctx.lineTo(r*.5,r); ctx.lineTo(-r*.5,r); ctx.lineTo(-r*.8,-r*.2); ctx.closePath();
@@ -510,6 +575,15 @@ function hud(){
  else elCombo.classList.remove("show");
  document.getElementById("hud").style.opacity=mode==="menu"?0:1;
  document.getElementById("ctrlhint").style.display=(mode==="playing"&&hintT>0)?"block":"none";
+ // rank badge
+ const rb=document.getElementById("rankbadge"), rk=rankAt(depthM);
+ if(mode==="playing"){ rb.textContent=rk.name.toUpperCase(); rb.style.color=rk.edge; } else rb.textContent="";
+ // slow-mo button
+ const sb=document.getElementById("slowbtn");
+ if(mode==="playing"){ sb.style.display="flex";
+  if(slowmoT>0){ sb.className="active"; sb.innerHTML=IC.slow("#fff")+"SLOW-MO "+Math.ceil(slowmoT)+"s"; }
+  else { sb.className=S.gems>=BAL.slowCost?"":"cant"; sb.innerHTML=IC.slow()+IC.gem()+BAL.slowCost; }
+ } else sb.style.display="none";
 }
 
 /* ===== ads ===== */
@@ -529,19 +603,23 @@ modal.addEventListener("pointerdown",e=>{ if(e.target===modal&&!modal._lock) clo
 const X='<button class="m-close" onclick="closeModal()">✕</button>';
 
 function showDeath(){
- const earned=runGems;
+ const earned=runGems, gemCost=reviveGemCost(depthM);
  window._collect=m=>{ S.gems+=earned*m; save(); endRunToMenu(); };
  window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
- window._revive=()=>watchAd(()=>revive());
+ window._reviveAd=()=>watchAd(()=>{ usedAdRevive=true; revive(5); });   // 5s invincibility
+ window._reviveGem=()=>{ if(S.gems<gemCost) return; S.gems-=gemCost; save(); revive(4); };
+ const reviveBtn = !usedAdRevive
+   ? `<button class="cta ad" onclick="_reviveAd()">REVIVE — watch ad<span class="s">5s invincibility, keep your run</span></button>`
+   : `<button class="cta" ${S.gems>=gemCost?"":"disabled"} onclick="_reviveGem()">REVIVE — ${gemCost} gems<span class="s">${S.gems>=gemCost?"4s invincibility":"not enough gems"}</span></button>`;
  openModal(`
   <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"Splat!"}</div>
-  <div class="m-sub">${biomeName(depthM)} • run #${S.runs}</div>
+  <div class="m-sub">${rankAt(depthM).name} zone • run #${S.runs}</div>
   <div class="big-num">${Math.floor(depthM)}m</div>
   <div class="stat-row"><span>Best</span><b>${S.best}m</b></div>
   <div class="stat-row"><span>Gems this run</span><b>${earned}</b></div>
-  ${!usedRevive?`<button class="cta ad" onclick="_revive()">REVIVE — watch ad<span class="s">keep this run going</span></button>`:""}
+  ${reviveBtn}
   ${earned>0?`<button class="cta ad" onclick="_collectAd()">Collect ${earned*2} gems — watch ad</button>`:""}
-  <button class="cta" onclick="_collect(1)">Dive again${earned>0?" (+"+earned+" gems)":""}</button>`,true);
+  <button class="cta alt" onclick="_collect(1)">Dive again${earned>0?" (+"+earned+" gems)":""}</button>`,true);
 }
 function endRunToMenu(){ runGems=0; mode="menu"; closeModal(); document.getElementById("start").classList.remove("hide"); }
 
@@ -590,6 +668,8 @@ window.openRank=function(){ const day=Math.floor(Date.now()/864e5);
 
 /* ===== settings ===== */
 window.openSettings=function(){ openModal(X+`<div class="m-title">Settings</div><div class="m-sub">Deep Dive</div>
+  <div class="row"><div class="info"><div class="nm">Sound FX</div><div class="sb">In-game sound effects</div></div>
+   <button class="buy" onclick="S.sound=!S.sound;save();SFX.ui();openSettings()">${S.sound?"On":"Off"}</button></div>
   <div class="row"><div class="info"><div class="nm">Haptics</div><div class="sb">Vibration feedback</div></div>
    <button class="buy" onclick="S.haptics=!S.haptics;save();openSettings()">${S.haptics?"On":"Off"}</button></div>
   <div class="row"><div class="info"><div class="nm">Restore Purchases</div></div><button class="buy" onclick="toast('Restored')">Restore</button></div>
@@ -602,6 +682,10 @@ document.getElementById("m-set").innerHTML=IC.gear();
 document.getElementById("m-shop").addEventListener("click",()=>openShop());
 document.getElementById("m-rank").addEventListener("click",openRank);
 document.getElementById("m-set").addEventListener("click",openSettings);
+function activateSlow(){ if(mode!=="playing"||slowmoT>0) return;
+ if(S.gems<BAL.slowCost){ toast("Need "+BAL.slowCost+" gems"); SFX.ui(); return; }
+ S.gems-=BAL.slowCost; slowmoT=BAL.slowDur; SFX.slow(); haptic(20); announce("SLOW-MO","#7ad7ff"); save(); }
+document.getElementById("slowbtn").addEventListener("pointerdown",e=>{ e.stopPropagation(); activateSlow(); });
 
 /* ===== daily ===== */
 (function(){ const today=new Date().toDateString();
