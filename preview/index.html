@@ -31,6 +31,11 @@
   #announce.show { animation:annc 1.7s ease-out forwards; }
   @keyframes annc { 0%{opacity:0;transform:translate(-50%,-50%) scale(.5)} 15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
     30%{transform:translate(-50%,-50%) scale(1)} 78%{opacity:1} 100%{opacity:0;transform:translate(-50%,-85%) scale(1.05)} }
+  #ctrlhint { position:absolute; bottom:14%; left:50%; transform:translateX(-50%); z-index:11; pointer-events:none;
+    display:none; text-align:center; color:#fff; font-weight:800; font-size:15px;
+    background:rgba(10,12,24,.6); backdrop-filter:blur(6px); padding:10px 18px; border-radius:14px;
+    border:1px solid rgba(255,255,255,.12); white-space:nowrap; }
+  #ctrlhint b { color:#7ad7ff; }
 
   /* Start screen */
   #start { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -115,6 +120,7 @@
   </div>
   <div id="combo"></div>
   <div id="announce"></div>
+  <div id="ctrlhint">Press &amp; <b>HOLD</b> = steer ►&nbsp;&nbsp;|&nbsp;&nbsp;<b>LET GO</b> = steer ◄</div>
 
   <div id="start">
     <h1>DEEP DIVE</h1>
@@ -183,10 +189,12 @@ if(!S.skins.includes(S.skin)) S.skin="rig";
 const save=()=>{ try{localStorage.setItem("gm-dive",JSON.stringify(S));}catch(e){} };
 
 const BAL={
- baseSpeed:250, speedGain:0.05, speedCap:780,   // descent px/s vs depth(m)
- accel:3100, vmax:560,                          // lateral control
- sliceH:16, baseHalf:152, halfShrink:0.022, minHalf:46,
- spikeBase:0.006, spikeGain:0.00002,            // spike spawn chance per slice
+ baseSpeed:200, speedGain:0.55, speedCap:620,   // descent px/s vs depth(m) — gentle ramp
+ steer:235,                                     // lateral steer speed (smoothed, predictable)
+ steerEase:0.0009,                              // lower = snappier toward target
+ sliceH:16, baseHalf:168, halfShrink:0.012, minHalf:62,
+ wideUntil:75,                                  // first 75m stay wide & spike-free (tutorial)
+ spikeBase:0.004, spikeGain:0.000015,           // spike spawn chance per slice
  gemChance:0.07, nearMiss:13,
  drillR:14, pxPerM:7,                           // 7 world px = 1 meter of depth
  biome:500,                                     // metres per biome
@@ -211,14 +219,15 @@ function resetWorld(){ slices=[]; genIdx=0; genCx=W/2; genHalf=BAL.baseHalf; gen
 function genTo(idx){
  while(genIdx<=idx){
   const m=genIdx*BAL.sliceH/BAL.pxPerM;
-  let half=Math.max(BAL.minHalf, BAL.baseHalf - m*BAL.halfShrink) + Math.sin(genIdx*0.06)*16;
-  // gentle opening for the first stretch so players learn
-  if(m<40) half=Math.max(half, BAL.baseHalf*0.95);
-  genHalf=lerp(genHalf,half,0.25);
-  genCx+=rand(-1,1)*Math.min(7, 2+m*0.02);
+  let half=Math.max(BAL.minHalf, BAL.baseHalf - m*BAL.halfShrink) + Math.sin(genIdx*0.05)*14;
+  // gentle, wide opening for the first stretch so players learn the controls
+  if(m<BAL.wideUntil) half=Math.max(half, BAL.baseHalf*0.96);
+  genHalf=lerp(genHalf,half,0.2);
+  // tunnel meanders less early on, more later
+  genCx+=rand(-1,1)*(m<BAL.wideUntil?1.2:Math.min(6, 2+m*0.015));
   genCx=clamp(genCx, genHalf+8, W-genHalf-8);
   let li=0,ri=0;
-  if(!genSpike && m>32 && Math.random()<BAL.spikeBase+m*BAL.spikeGain){
+  if(!genSpike && m>BAL.wideUntil && Math.random()<BAL.spikeBase+m*BAL.spikeGain){
    genSpike={side:Math.random()<0.5?-1:1, len:rand(28, Math.min(genHalf*1.3, 130)), span:Math.floor(rand(3,6)), i:0};
   }
   if(genSpike){ const t=genSpike.i/(genSpike.span); const prof=Math.sin(t*Math.PI);
@@ -236,7 +245,7 @@ function sliceAt(worldY){ const i=Math.floor(worldY/BAL.sliceH); if(i<0) return 
 let mode="menu";  // menu | playing | dead
 let drill={x:W/2, vx:0, y:0, tilt:0};
 let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedRevive=false;
-let holding=false, shake=0, invuln=0;
+let holding=false, shake=0, invuln=0, hintT=0;
 const parts=[], trail=[], pops=[];
 let beatBest=false, lastBiome=0;
 
@@ -245,8 +254,8 @@ function startRun(){
  resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
  drill={x:W/2, vx:0, y:0, tilt:0};
  speed=BAL.baseSpeed; depthM=0; runGems=0; combo=0; comboT=0;
- shields=BAL.shieldFromLvl(S.shieldLvl); usedRevive=false; invuln=1.2; shake=0;
- beatBest=false; lastBiome=0;
+ shields=BAL.shieldFromLvl(S.shieldLvl); usedRevive=false; invuln=1.4; shake=0;
+ beatBest=false; lastBiome=0; hintT=S.runs<4?7:3;   // show control hint, longer for new players
  parts.length=trail.length=pops.length=0;
  mode="playing"; holding=false;
  S.runs++; save();
@@ -286,16 +295,17 @@ function announce(txt,col){ const a=document.getElementById("announce"); a.textC
 /* ===== update ===== */
 function update(dt){
  if(mode!=="playing"){ shake=Math.max(0,shake-dt*30); return; }
- // speed ramps with depth
- speed=Math.min(BAL.speedCap, BAL.baseSpeed+depthM*BAL.speedGain*10);
+ // speed ramps gently with depth
+ speed=Math.min(BAL.speedCap, BAL.baseSpeed+depthM*BAL.speedGain);
  drill.y+=speed*dt;
  depthM=drill.y/BAL.pxPerM;
- // lateral: hold=right, release=left
- drill.vx+=(holding?BAL.accel:-BAL.accel)*dt;
- drill.vx=clamp(drill.vx,-BAL.vmax,BAL.vmax);
+ // lateral: smoothly steer toward a target velocity (predictable, not twitchy)
+ const targetVx=holding?BAL.steer:-BAL.steer;
+ drill.vx=lerp(drill.vx, targetVx, 1-Math.pow(BAL.steerEase,dt));
  drill.x+=drill.vx*dt;
- drill.tilt=lerp(drill.tilt, drill.vx/BAL.vmax*0.5, 0.2);
+ drill.tilt=lerp(drill.tilt, drill.vx/BAL.steer*0.5, 0.2);
  if(invuln>0) invuln-=dt;
+ if(hintT>0) hintT-=dt;
  // trail
  trail.push({x:drill.x,y:DRILLY,life:.5}); if(trail.length>22) trail.shift();
  // collision with current slice
@@ -420,6 +430,7 @@ function hud(){
  if(combo>=2){ elCombo.textContent="x"+(1+Math.min(combo,10)*0.5).toFixed(1)+" GEMS"; elCombo.classList.add("show"); }
  else elCombo.classList.remove("show");
  document.getElementById("hud").style.opacity=mode==="menu"?0:1;
+ document.getElementById("ctrlhint").style.display=(mode==="playing"&&hintT>0)?"block":"none";
 }
 
 /* ===== ads ===== */
