@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Deep Dive — Endless Drill</title>
+<title>Deep Dive — Endless Faller</title>
 <style>
   :root { color-scheme: dark; }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
@@ -124,7 +124,7 @@
 
   <div id="start">
     <h1>DEEP DIVE</h1>
-    <div class="tagline">how deep can you drill?</div>
+    <div class="tagline">how deep can you fall?</div>
     <button id="taptodive">TAP TO DIVE</button>
     <div class="hint">Hold to steer <b>right</b>, release to drift <b>left</b>. Dodge the walls and spikes. It only gets faster.</div>
     <div class="menu-row">
@@ -169,23 +169,31 @@ gear:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#8d93b8'}" stroke-wi
 play:c=>`<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="${c||'#fff'}"/></svg>`,
 };
 
-/* ===== drills (skins) ===== */
+/* ===== characters (skins) ===== */
 const SKINS=[
- {id:"rig",   name:"Rusty Rig",     cost:0,    top:"#ffb14a", bot:"#e2641f", glow:null},
- {id:"aqua",  name:"Aqua Borer",    cost:120,  top:"#7df0ff", bot:"#1c8fb0", glow:"#7df0ff"},
- {id:"viper", name:"Viper",         cost:260,  top:"#9bff8a", bot:"#1ca35a", glow:"#52ffa8"},
- {id:"magma", name:"Magma Lance",   cost:500,  top:"#ff8a5c", bot:"#c2231f", glow:"#ff5e62"},
- {id:"void",  name:"Void Spike",    cost:1000, top:"#c89bff", bot:"#3d1d78", glow:"#cf9bff"},
- {id:"gold",  name:"Gold Monarch",  cost:2200, top:"#ffe27a", bot:"#d99a1f", glow:"#ffd24a"},
+ {id:"rookie",  name:"Rookie",        cost:0,    type:"human",    body:"#3a7bd5", skinTone:"#ffcc9a", hair:"#5b3a2a"},
+ {id:"robot",   name:"Robo-Diver",    cost:150,  type:"robot",    body:"#9aa6b8", accent:"#5cd6ff"},
+ {id:"skeleton",name:"Rattlebones",   cost:300,  type:"skeleton", body:"#1a1a22", accent:"#eef2f5"},
+ {id:"neon",    name:"Neon Bot",      cost:450,  type:"neon",     body:"#10101a", accent:"#19f0ff", glow:"#19f0ff"},
+ {id:"ninja",   name:"Shadow Ninja",  cost:650,  type:"ninja",    body:"#1b1d2a", accent:"#ff3b5c"},
+ {id:"astro",   name:"Astronaut",     cost:850,  type:"astro",    body:"#eef2f7", accent:"#ff9d3f"},
+ {id:"alien",   name:"Little Green",  cost:1100, type:"alien",    body:"#5fd17a", accent:"#1f6b3a", glow:"#7dff9b"},
+ {id:"ghost",   name:"Phantom",       cost:1400, type:"ghost",    body:"#dbe6ff", accent:"#9bb8ff", glow:"#bcd4ff"},
+ {id:"magma",   name:"Magma Golem",   cost:1900, type:"magma",    body:"#2a1410", accent:"#ff6a2c", glow:"#ff6a2c"},
+ {id:"gold",    name:"Gold Royale",   cost:3200, type:"gold",     body:"#ffe27a", accent:"#b8841f", glow:"#ffd24a"},
 ];
 const skinById=id=>SKINS.find(s=>s.id===id)||SKINS[0];
+const skinTint=sk=>sk.glow||sk.accent||"#7ad7ff";
 
 /* ===== state / save ===== */
-let S={ gems:30, best:0, runs:0, skin:"rig", skins:["rig"],
+let S={ gems:30, best:0, runs:0, skin:"rookie", skins:["rookie"],
         shieldLvl:0, magnetLvl:0, removeAds:false, battlePass:false, haptics:true,
         daily:{last:0,streak:0} };
-try{ const r=JSON.parse(localStorage.getItem("gm-dive")||"{}"); S={...S,...r,skins:r.skins||["rig"],daily:{...S.daily,...(r.daily||{})}}; }catch(e){}
-if(!S.skins.includes(S.skin)) S.skin="rig";
+try{ const r=JSON.parse(localStorage.getItem("gm-dive")||"{}"); S={...S,...r,skins:r.skins||["rookie"],daily:{...S.daily,...(r.daily||{})}}; }catch(e){}
+// keep only valid skin ids (drops old drill ids from earlier saves)
+S.skins=(S.skins||[]).filter(id=>SKINS.some(s=>s.id===id));
+if(!S.skins.includes("rookie")) S.skins.unshift("rookie");
+if(!S.skins.includes(S.skin)) S.skin="rookie";
 const save=()=>{ try{localStorage.setItem("gm-dive",JSON.stringify(S));}catch(e){} };
 
 const BAL={
@@ -299,11 +307,15 @@ function update(dt){
  speed=Math.min(BAL.speedCap, BAL.baseSpeed+depthM*BAL.speedGain);
  drill.y+=speed*dt;
  depthM=drill.y/BAL.pxPerM;
- // lateral: smoothly steer toward a target velocity (predictable, not twitchy)
- const targetVx=holding?BAL.steer:-BAL.steer;
- drill.vx=lerp(drill.vx, targetVx, 1-Math.pow(BAL.steerEase,dt));
+ // lateral steer speed scales with how fast you're falling — faster fall,
+ // faster (and snappier) sideways movement
+ const spd=speed/BAL.baseSpeed;                         // 1.0 at start, grows with depth
+ const steer=BAL.steer*(0.85+0.35*spd);
+ const ease=Math.max(0.00003, BAL.steerEase/spd);       // snappier reaction at speed
+ const targetVx=holding?steer:-steer;
+ drill.vx=lerp(drill.vx, targetVx, 1-Math.pow(ease,dt));
  drill.x+=drill.vx*dt;
- drill.tilt=lerp(drill.tilt, drill.vx/BAL.steer*0.5, 0.2);
+ drill.tilt=lerp(drill.tilt, drill.vx/steer*0.5, 0.25);
  if(invuln>0) invuln-=dt;
  if(hintT>0) hintT-=dt;
  // trail
@@ -384,11 +396,18 @@ function draw(){
   ctx.beginPath(); ctx.moveTo(0,by); ctx.lineTo(W,by); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle="#ffd24a"; ctx.font="800 11px sans-serif"; ctx.textAlign="left"; ctx.fillText("BEST "+S.best+"m",6,by-4); } }
  // trail
- for(let i=0;i<trail.length;i++){ const t=trail[i]; ctx.globalAlpha=(i/trail.length)*0.4;
-  ctx.fillStyle=skinById(S.skin).glow||"#ff9d3f"; ctx.beginPath(); ctx.arc(t.x,t.y,3+ i*0.2,0,7); ctx.fill(); }
+ for(let i=0;i<trail.length;i++){ const t=trail[i]; ctx.globalAlpha=(i/trail.length)*0.35;
+  ctx.fillStyle=skinTint(skinById(S.skin)); ctx.beginPath(); ctx.arc(t.x,t.y,2.5+ i*0.18,0,7); ctx.fill(); }
  ctx.globalAlpha=1;
- // drill
- if(mode!=="dead") drawDrill(drill.x,DRILLY,drill.tilt);
+ // character
+ if(mode!=="dead"){
+  ctx.save();
+  if(invuln>0&&Math.floor(invuln*12)%2) ctx.globalAlpha=0.5;
+  if(shields>0){ ctx.strokeStyle="rgba(122,215,255,.85)"; ctx.lineWidth=2.5; ctx.shadowColor="#7ad7ff"; ctx.shadowBlur=10;
+   ctx.beginPath(); ctx.arc(drill.x,DRILLY,23,0,7); ctx.stroke(); ctx.shadowBlur=0; }
+  drawFaller(ctx, drill.x, DRILLY, 34, drill.tilt, skinById(S.skin), performance.now()/1000);
+  ctx.restore();
+ }
  // particles
  for(const p of parts){ ctx.globalAlpha=clamp(p.life/p.max,0,1); ctx.fillStyle=p.col;
   ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); }
@@ -401,24 +420,84 @@ function draw(){
 function drawGem(x,y,r,col){ ctx.save(); ctx.translate(x,y); ctx.shadowColor=col; ctx.shadowBlur=10;
  ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.8,-r*.2); ctx.lineTo(r*.5,r); ctx.lineTo(-r*.5,r); ctx.lineTo(-r*.8,-r*.2); ctx.closePath();
  ctx.fillStyle=col; ctx.fill(); ctx.restore(); }
-function drawDrill(x,y,tilt){ const s=30, sk=skinById(S.skin); ctx.save(); ctx.translate(x,y); ctx.rotate(tilt);
- if(invuln>0&&Math.floor(invuln*12)%2) ctx.globalAlpha=0.5;
- // shield ring
- if(shields>0){ ctx.strokeStyle="rgba(122,215,255,.8)"; ctx.lineWidth=2.5; ctx.shadowColor="#7ad7ff"; ctx.shadowBlur=10;
-  ctx.beginPath(); ctx.arc(0,0,s*0.7,0,7); ctx.stroke(); ctx.shadowBlur=0; }
- const g=ctx.createLinearGradient(0,-s*.5,0,s*.5); g.addColorStop(0,sk.top); g.addColorStop(1,sk.bot);
- if(sk.glow){ ctx.shadowColor=sk.glow; ctx.shadowBlur=14; }
- ctx.fillStyle=g; ctx.beginPath();
- ctx.moveTo(-s*.34,-s*.4); ctx.lineTo(s*.34,-s*.4); ctx.lineTo(s*.34,s*.12); ctx.lineTo(0,s*.5); ctx.lineTo(-s*.34,s*.12); ctx.closePath();
- ctx.fill(); ctx.shadowBlur=0;
- ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.5; ctx.stroke();
- // bit
- ctx.fillStyle="#c8cdd8"; ctx.beginPath(); ctx.moveTo(-s*.16,s*.4); ctx.lineTo(s*.16,s*.4); ctx.lineTo(0,s*.66); ctx.closePath(); ctx.fill();
- // window
- ctx.fillStyle="#9fe8ff"; ctx.beginPath(); ctx.arc(0,-s*.08,s*.13,0,7); ctx.fill();
- ctx.fillStyle="rgba(255,255,255,.7)"; ctx.beginPath(); ctx.arc(-s*.04,-s*.12,s*.05,0,7); ctx.fill();
- ctx.restore();
+function rrect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r);
+ c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function limb(c,x1,y1,x2,y2,w,col){ c.strokeStyle=col; c.lineWidth=w; c.lineCap="round";
+ c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+
+// Falling character — viewed front-on in a skydive pose. Shared by the
+// live game and the shop preview thumbnails. `t` drives limb flutter.
+function drawFaller(c,x,y,s,tilt,sk,t){
+ c.save(); c.translate(x,y); c.rotate(tilt*0.7);
+ if(sk.glow){ c.shadowColor=sk.glow; c.shadowBlur=13; }
+ const fl=Math.sin(t*9)*0.14*s;
+ const ghost=sk.type==="ghost";
+ const lc=(sk.type==="skeleton"||sk.type==="neon")?sk.accent:sk.body;
+ if(ghost) c.globalAlpha=0.82;
+ // arms (up & out) and legs (down & out)
+ limb(c,-s*0.15,-s*0.07,-s*0.33,-s*0.3-fl,s*0.10,lc);
+ limb(c, s*0.15,-s*0.07, s*0.33,-s*0.3+fl,s*0.10,lc);
+ if(!ghost){ limb(c,-s*0.09,s*0.14,-s*0.18,s*0.42+fl,s*0.11,lc);
+             limb(c, s*0.09,s*0.14, s*0.18,s*0.42-fl,s*0.11,lc); }
+ // torso
+ c.fillStyle=(sk.type==="neon")?"#0c0c14":sk.body;
+ rrect(c,-s*0.17,-s*0.12,s*0.34,s*0.34,s*0.1); c.fill();
+ if(sk.type==="neon"){ c.strokeStyle=sk.accent; c.lineWidth=2; rrect(c,-s*0.17,-s*0.12,s*0.34,s*0.34,s*0.1); c.stroke(); }
+ if(ghost){ c.fillStyle=sk.body; c.beginPath(); c.moveTo(-s*0.17,s*0.08); c.lineTo(-s*0.17,s*0.3);
+   for(let i=0;i<4;i++) c.lineTo(-s*0.17+(i+0.5)*s*0.085, s*0.3+(i%2?-1:1)*s*0.05);
+   c.lineTo(s*0.17,s*0.3); c.lineTo(s*0.17,s*0.08); c.closePath(); c.fill(); }
+ if(sk.type==="skeleton"){ c.strokeStyle=sk.accent; c.lineWidth=1.4;
+   for(let i=0;i<3;i++){ const yy=-s*0.04+i*s*0.08; c.beginPath(); c.moveTo(-s*0.1,yy); c.lineTo(s*0.1,yy); c.stroke(); }
+   c.beginPath(); c.moveTo(0,-s*0.08); c.lineTo(0,s*0.16); c.stroke(); }
+ if(sk.type==="magma"){ c.strokeStyle=sk.accent; c.lineWidth=1.6;
+   c.beginPath(); c.moveTo(-s*0.1,-s*0.08); c.lineTo(-s*0.02,s*0.02); c.lineTo(-s*0.08,s*0.16); c.stroke();
+   c.beginPath(); c.moveTo(s*0.1,-s*0.04); c.lineTo(s*0.03,s*0.07); c.stroke(); }
+ if(sk.type==="astro"){ c.fillStyle=sk.accent; c.fillRect(-s*0.17,-s*0.02,s*0.34,s*0.05); }
+ if(sk.type==="robot"){ c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1; c.beginPath(); c.moveTo(0,-s*0.1); c.lineTo(0,s*0.2); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(0,s*0.02,s*0.035,0,7); c.fill(); }
+ if(sk.type==="gold"){ c.fillStyle="rgba(255,255,255,.5)"; c.fillRect(-s*0.12,-s*0.08,s*0.035,s*0.24); }
+ if(sk.type==="ninja"){ c.fillStyle=sk.accent; c.fillRect(-s*0.17,s*0.02,s*0.34,s*0.04);
+   c.strokeStyle=sk.accent; c.lineWidth=s*0.055; c.lineCap="round";
+   c.beginPath(); c.moveTo(s*0.1,-s*0.1); c.quadraticCurveTo(s*0.34,0, s*0.42,-s*0.18+Math.sin(t*6)*s*0.06); c.stroke(); }
+ // head
+ const hr=s*0.17, hy=-s*0.28;
+ if(sk.type==="robot"){ c.fillStyle=sk.body; rrect(c,-hr,hy-hr,hr*2,hr*2,s*0.04); c.fill();
+   c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1; rrect(c,-hr,hy-hr,hr*2,hr*2,s*0.04); c.stroke();
+   c.strokeStyle=sk.body; c.lineWidth=2; c.beginPath(); c.moveTo(0,hy-hr); c.lineTo(0,hy-hr-s*0.12); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(0,hy-hr-s*0.14,s*0.035,0,7); c.fill();
+   c.fillStyle=sk.accent; c.fillRect(-hr*0.7,hy-s*0.02,hr*1.4,s*0.05); }
+ else if(sk.type==="skeleton"){ c.fillStyle=sk.accent; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#111"; c.beginPath(); c.arc(-hr*0.4,hy-hr*0.05,hr*0.27,0,7); c.arc(hr*0.4,hy-hr*0.05,hr*0.27,0,7); c.fill();
+   c.beginPath(); c.moveTo(0,hy+hr*0.15); c.lineTo(-hr*0.12,hy+hr*0.42); c.lineTo(hr*0.12,hy+hr*0.42); c.closePath(); c.fill(); }
+ else if(sk.type==="alien"){ c.fillStyle=sk.body; c.beginPath(); c.ellipse(0,hy,hr*1.05,hr*1.3,0,0,7); c.fill();
+   c.fillStyle="#06120a"; c.beginPath(); c.ellipse(-hr*0.45,hy,hr*0.3,hr*0.52,0.4,0,7); c.ellipse(hr*0.45,hy,hr*0.3,hr*0.52,-0.4,0,7); c.fill(); }
+ else if(sk.type==="astro"){ c.fillStyle="#fff"; c.beginPath(); c.arc(0,hy,hr*1.1,0,7); c.fill();
+   c.fillStyle="#1b2a44"; c.beginPath(); c.arc(0,hy,hr*0.82,0,7); c.fill();
+   c.fillStyle="rgba(255,255,255,.55)"; c.beginPath(); c.arc(-hr*0.3,hy-hr*0.3,hr*0.2,0,7); c.fill(); }
+ else if(sk.type==="ghost"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#3a4a6a"; c.beginPath(); c.arc(-hr*0.35,hy,hr*0.22,0,7); c.arc(hr*0.35,hy,hr*0.22,0,7); c.fill(); }
+ else if(sk.type==="ninja"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#f0d8b0"; c.fillRect(-hr,hy-hr*0.22,hr*2,hr*0.46);
+   c.fillStyle="#111"; c.fillRect(-hr*0.55,hy-hr*0.06,hr*0.4,hr*0.14); c.fillRect(hr*0.15,hy-hr*0.06,hr*0.4,hr*0.14); }
+ else if(sk.type==="neon"){ c.fillStyle="#0c0c14"; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.strokeStyle=sk.accent; c.lineWidth=2; c.beginPath(); c.arc(0,hy,hr,0,7); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(-hr*0.4,hy-hr*0.05,hr*0.17,0,7); c.arc(hr*0.4,hy-hr*0.05,hr*0.17,0,7); c.fill(); }
+ else if(sk.type==="magma"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(-hr*0.35,hy,hr*0.16,0,7); c.arc(hr*0.35,hy,hr*0.16,0,7); c.fill(); }
+ else if(sk.type==="gold"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#111"; c.beginPath(); c.arc(-hr*0.32,hy,hr*0.12,0,7); c.arc(hr*0.32,hy,hr*0.12,0,7); c.fill();
+   c.fillStyle=sk.glow; c.beginPath(); c.moveTo(-hr,hy-hr*0.9); c.lineTo(-hr,hy-hr*1.5); c.lineTo(-hr*0.5,hy-hr*1.1);
+   c.lineTo(0,hy-hr*1.6); c.lineTo(hr*0.5,hy-hr*1.1); c.lineTo(hr,hy-hr*1.5); c.lineTo(hr,hy-hr*0.9); c.closePath(); c.fill(); }
+ else { c.fillStyle=sk.skinTone||"#ffcc9a"; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle=sk.hair||"#5b3a2a"; c.beginPath(); c.arc(0,hy-hr*0.2,hr,Math.PI*1.05,Math.PI*1.95); c.fill();
+   c.fillStyle="#222"; c.beginPath(); c.arc(-hr*0.35,hy+hr*0.05,hr*0.13,0,7); c.arc(hr*0.35,hy+hr*0.05,hr*0.13,0,7); c.fill(); }
+ c.restore();
 }
+// Pre-rendered shop thumbnails so you see the real character before buying.
+const _thumbs={};
+function skinThumb(sk){ if(_thumbs[sk.id]) return _thumbs[sk.id];
+ const tc=document.createElement("canvas"); tc.width=tc.height=96; const c=tc.getContext("2d");
+ c.translate(48,52); drawFaller(c,0,0,58,0,sk,0); _thumbs[sk.id]=tc.toDataURL(); return _thumbs[sk.id]; }
 
 /* ===== HUD ===== */
 const elDist=document.getElementById("dist"), elBest=document.getElementById("best"),
@@ -455,7 +534,7 @@ function showDeath(){
  window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
  window._revive=()=>watchAd(()=>revive());
  openModal(`
-  <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"You crashed"}</div>
+  <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"Splat!"}</div>
   <div class="m-sub">${biomeName(depthM)} • run #${S.runs}</div>
   <div class="big-num">${Math.floor(depthM)}m</div>
   <div class="stat-row"><span>Best</span><b>${S.best}m</b></div>
@@ -469,10 +548,10 @@ function endRunToMenu(){ runGems=0; mode="menu"; closeModal(); document.getEleme
 /* ===== shop ===== */
 let shopTab="skins";
 function shopSkins(){ return SKINS.map(k=>{ const owned=S.skins.includes(k.id), on=S.skin===k.id;
-  const sw=`<div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(${k.top},${k.bot});box-shadow:0 0 10px ${k.glow||"transparent"}"></div>`;
+  const sw=`<img src="${skinThumb(k)}" style="width:44px;height:44px" alt="${k.name}">`;
   const btn=on?`<button class="buy" disabled>Equipped</button>`:owned?`<button class="buy" onclick="equip('${k.id}')">Equip</button>`
    :`<button class="buy gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
-  return `<div class="row">${sw}<div class="info"><div class="nm">${k.name}</div><div class="sb">${on?"Equipped":owned?"Owned":"Drill skin"}</div></div>${btn}</div>`; }).join(""); }
+  return `<div class="row">${sw}<div class="info"><div class="nm">${k.name}</div><div class="sb">${on?"Equipped":owned?"Owned":"Character skin"}</div></div>${btn}</div>`; }).join(""); }
 function shopUpgrades(){ const sc=BAL.shieldCost(S.shieldLvl), mc=BAL.magnetCost(S.magnetLvl);
  return `
   <div class="row"><div class="info"><div class="nm">Start Shield • Lv ${S.shieldLvl}</div><div class="sb">Begin each run absorbing ${S.shieldLvl} hit${S.shieldLvl===1?"":"s"}</div></div>
@@ -487,8 +566,8 @@ function shopGems(){ return `
   <div class="row"><div class="info"><div class="nm">Pouch of Gems</div><div class="sb">200 gems</div></div><button class="buy iap" onclick="iapGems(200)">$1.99</button></div>
   <div class="row"><div class="info"><div class="nm">Chest of Gems</div><div class="sb">1200 gems • best value</div></div><button class="buy iap" onclick="iapGems(1200)">$7.99</button></div>`; }
 window.openShop=function(t){ if(t)shopTab=t; const tb=(id,l)=>`<button class="tab ${shopTab===id?"on":""}" onclick="openShop('${id}')">${l}</button>`;
- openModal(X+`<div class="m-title">Garage</div><div class="m-sub">Spend gems • purchases simulated in this prototype</div>
-  <div class="tabs">${tb("skins","DRILLS")}${tb("upgrades","UPGRADES")}${tb("gems","GEMS")}</div>
+ openModal(X+`<div class="m-title">Wardrobe</div><div class="m-sub">Spend gems • purchases simulated in this prototype</div>
+  <div class="tabs">${tb("skins","CHARACTERS")}${tb("upgrades","UPGRADES")}${tb("gems","GEMS")}</div>
   ${shopTab==="skins"?shopSkins():shopTab==="upgrades"?shopUpgrades():shopGems()}`); };
 window.buySkin=id=>{ const k=skinById(id); if(S.gems<k.cost||S.skins.includes(id))return; S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop("skins"); };
 window.equip=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop("skins"); } };
@@ -517,7 +596,7 @@ window.openSettings=function(){ openModal(X+`<div class="m-title">Settings</div>
   <div class="stat-row" style="margin-top:10px"><span>Total dives</span><b>${S.runs}</b></div>
   <div class="stat-row"><span>Best depth</span><b>${S.best}m</b></div>`); };
 
-document.getElementById("m-shop").innerHTML=IC.bag()+"Garage";
+document.getElementById("m-shop").innerHTML=IC.bag()+"Wardrobe";
 document.getElementById("m-rank").innerHTML=IC.trophy()+"Ranks";
 document.getElementById("m-set").innerHTML=IC.gear();
 document.getElementById("m-shop").addEventListener("click",()=>openShop());
