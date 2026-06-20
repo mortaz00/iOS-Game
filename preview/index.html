@@ -217,7 +217,7 @@ const BAL={
  spikeBase:0.004, spikeGain:0.000015,           // spike spawn chance per slice
  gemChance:0.07, nearMiss:13,
  drillR:14, pxPerM:7,                           // 7 world px = 1 meter of depth
- slowCost:15, slowDur:5, slowFactor:0.4,        // slow-mo power: gems, seconds, speed factor
+ slowCost:15, slowDur:5, slowFactor:0.4, slowCd:30,  // slow-mo: base gems, seconds, factor, cooldown
  shieldFromLvl:l=>l,                            // hits absorbed at run start
  shieldCost:l=>Math.round(120*Math.pow(2.2,l)),
  magnetCost:l=>Math.round(100*Math.pow(2.3,l)),
@@ -278,7 +278,8 @@ function sliceAt(worldY){ const i=Math.floor(worldY/BAL.sliceH); if(i<0) return 
 let mode="menu";  // menu | playing | dead
 let drill={x:W/2, vx:0, y:0, tilt:0};
 let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedAdRevive=false;
-let holding=false, shake=0, invuln=0, hintT=0, slowmoT=0, lastRank=0;
+let holding=false, shake=0, invuln=0, hintT=0, slowmoT=0, slowUses=0, slowCdT=0, lastRank=0;
+function slowCostNow(){ return BAL.slowCost*Math.pow(10,slowUses); }   // 15, 150, 1500, ... per run
 const parts=[], trail=[], pops=[];
 let beatBest=false;
 
@@ -288,7 +289,7 @@ function startRun(){
  drill={x:W/2, vx:0, y:0, tilt:0};
  speed=BAL.baseSpeed; depthM=0; runGems=0; combo=0; comboT=0;
  shields=BAL.shieldFromLvl(S.shieldLvl); usedAdRevive=false; invuln=1.4; shake=0;
- beatBest=false; lastRank=0; slowmoT=0; hintT=S.runs<4?7:3;   // hint longer for new players
+ beatBest=false; lastRank=0; slowmoT=0; slowUses=0; slowCdT=0; hintT=S.runs<4?7:3;   // hint longer for new players
  parts.length=trail.length=pops.length=0;
  mode="playing"; holding=false;
  initAudio(); resumeAudio();
@@ -360,6 +361,7 @@ function update(dt){
  const worldDepth=drill.y/BAL.pxPerM;
  speed=Math.min(BAL.speedCap, BAL.baseSpeed+worldDepth*BAL.speedGain);
  if(slowmoT>0) slowmoT-=dt;
+ if(slowCdT>0) slowCdT-=dt;
  const eff=slowmoT>0?speed*BAL.slowFactor:speed;   // slow-mo eases the scroll...
  drill.y+=eff*dt;
  depthM+=speed*dt/BAL.pxPerM;                       // ...but meters still bank at full speed
@@ -582,7 +584,8 @@ function hud(){
  const sb=document.getElementById("slowbtn");
  if(mode==="playing"){ sb.style.display="flex";
   if(slowmoT>0){ sb.className="active"; sb.innerHTML=IC.slow("#fff")+"SLOW-MO "+Math.ceil(slowmoT)+"s"; }
-  else { sb.className=S.gems>=BAL.slowCost?"":"cant"; sb.innerHTML=IC.slow()+IC.gem()+BAL.slowCost; }
+  else if(slowCdT>0){ sb.className="cant"; sb.innerHTML=IC.slow()+"COOLDOWN "+Math.ceil(slowCdT)+"s"; }
+  else { const c=slowCostNow(); sb.className=S.gems>=c?"":"cant"; sb.innerHTML=IC.slow()+IC.gem()+c; }
  } else sb.style.display="none";
 }
 
@@ -608,9 +611,15 @@ function showDeath(){
  window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
  window._reviveAd=()=>watchAd(()=>{ usedAdRevive=true; revive(5); });   // 5s invincibility
  window._reviveGem=()=>{ if(S.gems<gemCost) return; S.gems-=gemCost; save(); revive(4); };
+ window._buyGems=n=>{ S.gems+=n; toast("+"+n+" gems (simulated)"); SFX.gem(); save(); showDeath(); };
  const reviveBtn = !usedAdRevive
    ? `<button class="cta ad" onclick="_reviveAd()">REVIVE — watch ad<span class="s">5s invincibility, keep your run</span></button>`
    : `<button class="cta" ${S.gems>=gemCost?"":"disabled"} onclick="_reviveGem()">REVIVE — ${gemCost} gems<span class="s">${S.gems>=gemCost?"4s invincibility":"not enough gems"}</span></button>`;
+ // revive special: gem packs at +10% bonus vs the store
+ const offer = usedAdRevive
+   ? `<div class="m-sub" style="margin:14px 0 4px;color:#ffd24a">⚡ REVIVE SPECIAL — 10% extra gems</div>
+      <button class="cta alt" onclick="_buyGems(220)">220 gems — $1.99<span class="s">+10% bonus</span></button>
+      <button class="cta alt" onclick="_buyGems(1320)">1,320 gems — $7.99<span class="s">+10% bonus • best value</span></button>` : "";
  openModal(`
   <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"Splat!"}</div>
   <div class="m-sub">${rankAt(depthM).name} zone • run #${S.runs}</div>
@@ -618,6 +627,7 @@ function showDeath(){
   <div class="stat-row"><span>Best</span><b>${S.best}m</b></div>
   <div class="stat-row"><span>Gems this run</span><b>${earned}</b></div>
   ${reviveBtn}
+  ${offer}
   ${earned>0?`<button class="cta ad" onclick="_collectAd()">Collect ${earned*2} gems — watch ad</button>`:""}
   <button class="cta alt" onclick="_collect(1)">Dive again${earned>0?" (+"+earned+" gems)":""}</button>`,true);
 }
@@ -683,8 +693,11 @@ document.getElementById("m-shop").addEventListener("click",()=>openShop());
 document.getElementById("m-rank").addEventListener("click",openRank);
 document.getElementById("m-set").addEventListener("click",openSettings);
 function activateSlow(){ if(mode!=="playing"||slowmoT>0) return;
- if(S.gems<BAL.slowCost){ toast("Need "+BAL.slowCost+" gems"); SFX.ui(); return; }
- S.gems-=BAL.slowCost; slowmoT=BAL.slowDur; SFX.slow(); haptic(20); announce("SLOW-MO","#7ad7ff"); save(); }
+ if(slowCdT>0){ toast("Slow-mo on cooldown"); SFX.ui(); return; }
+ const cost=slowCostNow();
+ if(S.gems<cost){ toast("Need "+cost+" gems"); SFX.ui(); return; }
+ S.gems-=cost; slowUses++; slowmoT=BAL.slowDur; slowCdT=BAL.slowCd;
+ SFX.slow(); haptic(20); announce("SLOW-MO","#7ad7ff"); save(); }
 document.getElementById("slowbtn").addEventListener("pointerdown",e=>{ e.stopPropagation(); activateSlow(); });
 
 /* ===== daily ===== */
