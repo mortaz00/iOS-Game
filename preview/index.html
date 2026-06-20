@@ -3,279 +3,103 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Gem Miner: Deep Descent — Playable Prototype</title>
+<title>Deep Dive — Endless Drill</title>
 <style>
   :root { color-scheme: dark; }
   * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
   html, body { height:100%; background:#05050d; overflow:hidden; }
   body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
-  #game { position:relative; width:100%; max-width:440px; height:100vh; height:100dvh; overflow:hidden; background:#000; }
+  #game { position:relative; width:100%; max-width:440px; height:100vh; height:100dvh; overflow:hidden; background:#05060f; }
   canvas { position:absolute; inset:0; touch-action:none; }
 
-  /* ---------- HUD ---------- */
-  #hud {
-    position:absolute; top:env(safe-area-inset-top,8px); left:0; right:0; padding:10px 12px 0;
-    display:flex; justify-content:space-between; gap:8px; z-index:10; pointer-events:none;
-  }
-  .pill {
-    display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:999px;
-    background:rgba(10,12,24,.72); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.09);
-    color:#fff; font-weight:800; font-size:14px; box-shadow:0 2px 10px rgba(0,0,0,.4);
-  }
-  .pill svg { width:16px; height:16px; flex:none; }
-  #depth-pill { color:#9fd8ff; }
+  /* HUD */
+  #hud { position:absolute; top:env(safe-area-inset-top,8px); left:0; right:0; padding:10px 14px 0;
+    display:flex; justify-content:space-between; align-items:flex-start; z-index:10; pointer-events:none; }
+  #dist { font-size:40px; font-weight:900; color:#fff; line-height:1; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  #dist small { font-size:18px; font-weight:800; opacity:.7; }
+  #best { font-size:12px; font-weight:700; color:#7ad7ff; margin-top:3px; }
+  .pill { display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:999px;
+    background:rgba(10,12,24,.6); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.09);
+    color:#fff; font-weight:800; font-size:15px; pointer-events:auto; }
+  .pill svg { width:16px; height:16px; }
+  #combo { position:absolute; top:33%; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none;
+    font-weight:900; font-size:22px; color:#ffd54a; text-shadow:0 0 16px rgba(255,170,20,.9); opacity:0; }
+  #combo.show { opacity:1; transition:opacity .1s; }
+  #announce { position:absolute; top:40%; left:50%; z-index:12; pointer-events:none;
+    font-size:30px; font-weight:900; text-align:center; opacity:0; white-space:nowrap;
+    text-shadow:0 0 24px currentColor, 0 2px 6px #000; }
+  #announce.show { animation:annc 1.7s ease-out forwards; }
+  @keyframes annc { 0%{opacity:0;transform:translate(-50%,-50%) scale(.5)} 15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
+    30%{transform:translate(-50%,-50%) scale(1)} 78%{opacity:1} 100%{opacity:0;transform:translate(-50%,-85%) scale(1.05)} }
 
-  #energy-wrap {
-    position:absolute; top:calc(env(safe-area-inset-top,8px) + 52px); left:12px; right:12px; height:16px;
-    border-radius:999px; background:rgba(10,12,24,.72); border:1px solid rgba(255,255,255,.09);
-    overflow:hidden; z-index:10;
-  }
-  #energy-bar {
-    height:100%; width:100%; border-radius:999px;
-    background:linear-gradient(90deg,#19e3b1,#7cf2c8); transition:width .2s;
-    box-shadow:0 0 12px rgba(25,227,177,.55);
-  }
-  #energy-wrap.low #energy-bar { background:linear-gradient(90deg,#ff5252,#ff9b52); animation:blink .5s infinite alternate; }
-  @keyframes blink { from{opacity:1} to{opacity:.55} }
-  #energy-label {
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    font-size:10px; font-weight:800; color:#04261c; letter-spacing:.4px;
-  }
-  #energy-wrap.low #energy-label { color:#3a0d05; }
+  /* Start screen */
+  #start { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; text-align:center; padding:24px; }
+  #start.hide { display:none; }
+  #start h1 { font-size:42px; font-weight:900; color:#fff; letter-spacing:1px;
+    background:linear-gradient(#7ad7ff,#b06bff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #start .tagline { color:#8d93b8; font-size:14px; margin-top:-6px; }
+  #taptodive { margin-top:8px; padding:16px 40px; border-radius:18px; font-size:20px; font-weight:900; color:#fff;
+    background:linear-gradient(135deg,#19c3ff,#7b5cff); box-shadow:0 8px 34px rgba(80,120,255,.5);
+    animation:bob 1.1s ease-in-out infinite alternate; border:none; cursor:pointer; }
+  @keyframes bob { from{transform:translateY(0)} to{transform:translateY(-8px)} }
+  #start .hint { color:#667; font-size:12.5px; max-width:260px; line-height:1.5; }
+  .menu-row { display:flex; gap:10px; margin-top:6px; }
+  .menu-btn { padding:11px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.12); cursor:pointer;
+    background:rgba(255,255,255,.06); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; gap:6px; }
+  .menu-btn svg { width:16px; height:16px; }
 
-  /* level timer: thin draining strip pinned to the very top edge */
-  #time-top {
-    position:absolute; top:0; left:0; right:0; height:5px; z-index:12;
-    background:rgba(255,255,255,.07); display:none;
-  }
-  #time-top-bar {
-    height:100%; background:linear-gradient(90deg,#ffd24a,#ff9d3f);
-    box-shadow:0 0 12px rgba(255,157,63,.7);
-  }
-  #time-top.low #time-top-bar { background:linear-gradient(90deg,#ff5252,#ff2d55); animation:blink .35s infinite alternate; }
-
-  /* goal chip: a pill that fills with gold as you collect */
-  .goalchip {
-    position:relative; overflow:hidden; font-size:11px; font-weight:800;
-    padding:4px 12px; border-radius:999px; color:#fff;
-    background:rgba(10,12,24,.72); border:1px solid rgba(255,210,74,.45);
-  }
-  .goalchip .fill { position:absolute; left:0; top:0; bottom:0; background:rgba(255,210,74,.4); }
-  .goalchip.done { border-color:rgba(46,204,113,.7); }
-  .goalchip.done .fill { background:rgba(46,204,113,.45); }
-  .goalchip span { position:relative; }
-
-  /* big animated reward announcement */
-  #announce {
-    position:absolute; top:36%; left:50%; z-index:25; pointer-events:none;
-    font-size:34px; font-weight:900; text-align:center; opacity:0; white-space:nowrap;
-    text-shadow:0 0 26px currentColor, 0 2px 6px #000;
-  }
-  #announce.show { animation:annc 1.5s ease-out forwards; }
-  @keyframes annc {
-    0%   { opacity:0; transform:translate(-50%,-50%) scale(.5); }
-    15%  { opacity:1; transform:translate(-50%,-50%) scale(1.18); }
-    30%  { transform:translate(-50%,-50%) scale(1); }
-    75%  { opacity:1; }
-    100% { opacity:0; transform:translate(-50%,-80%) scale(1.05); }
-  }
-
-  #btn-box {
-    position:absolute; left:50%; transform:translateX(-50%);
-    bottom:calc(env(safe-area-inset-bottom,10px) + 238px);
-    width:62px; height:62px; border-radius:50%; border:1px solid rgba(255,210,74,.5);
-    background:linear-gradient(160deg,#3a2e12,#221a08); cursor:pointer; z-index:11;
-    display:none; align-items:center; justify-content:center;
-    box-shadow:0 0 22px rgba(255,210,74,.45);
-  }
-  #btn-box svg { width:30px; height:30px; }
-
-  #chips { position:absolute; top:calc(env(safe-area-inset-top,8px) + 76px); left:0; right:0;
-    display:flex; justify-content:center; gap:6px; z-index:10; pointer-events:none; }
-  .chip { font-size:11px; font-weight:800; padding:4px 10px; border-radius:999px; backdrop-filter:blur(6px); }
-  .chip.frenzy { background:rgba(255,200,40,.22); color:#ffd54a; border:1px solid rgba(255,213,74,.4); }
-  .chip.boost  { background:rgba(80,200,255,.18); color:#7ad7ff; border:1px solid rgba(122,215,255,.4); }
-  .chip.relic  { background:rgba(190,120,255,.18); color:#cf9bff; border:1px solid rgba(207,155,255,.4); }
-
-  #combo {
-    position:absolute; top:34%; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none;
-    font-weight:900; font-size:26px; color:#ffd54a; text-shadow:0 0 18px rgba(255,160,20,.9),0 2px 4px #000;
-    opacity:0; transition:opacity .2s, transform .15s;
-  }
-  #combo.show { opacity:1; }
-
-  /* ---------- Controls ---------- */
-  #controls {
-    position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom,10px) + 8px);
-    display:flex; align-items:flex-end; justify-content:space-between; padding:0 16px; z-index:10;
-  }
-  .round-btn {
-    width:58px; height:58px; border-radius:50%; border:1px solid rgba(255,255,255,.14);
-    background:linear-gradient(160deg,#222438,#14152a); cursor:pointer; position:relative;
-    display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(0,0,0,.5);
-  }
-  .round-btn svg { width:26px; height:26px; }
-  .round-btn:active { transform:scale(.92); }
-  .badge {
-    position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; border-radius:9px;
-    background:#ff3b6b; color:#fff; font-size:11px; font-weight:800;
-    display:none; align-items:center; justify-content:center; padding:0 4px;
-  }
-  .badge.on { display:flex; }
-
-  #dpad { display:grid; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(2,52px); gap:6px; }
-  .btn-col { display:flex; flex-direction:column; gap:10px; align-items:center; }
-  #joy {
-    width:128px; height:128px; border-radius:50%; position:relative; touch-action:none;
-    background:radial-gradient(circle at 50% 40%, rgba(56,60,100,.55), rgba(16,18,36,.75));
-    border:1px solid rgba(255,255,255,.14); box-shadow:0 6px 18px rgba(0,0,0,.5);
-  }
-  #joy-knob {
-    position:absolute; left:50%; top:50%; width:56px; height:56px; margin:-28px 0 0 -28px;
-    border-radius:50%; pointer-events:none;
-    background:linear-gradient(160deg,#3a3f6b,#1d2040);
-    border:1px solid rgba(255,255,255,.22); box-shadow:0 4px 12px rgba(0,0,0,.6);
-  }
-  #joy.active #joy-knob { background:linear-gradient(160deg,#ff9d3f,#ff5e62); }
-  #bomb-count {
-    position:absolute; top:-3px; right:-3px; min-width:18px; height:18px; border-radius:9px;
-    background:#ffd24a; color:#321; font-size:11px; font-weight:800;
-    display:flex; align-items:center; justify-content:center; padding:0 4px;
-  }
-  #btn-start {
-    position:absolute; left:50%; transform:translateX(-50%);
-    bottom:calc(env(safe-area-inset-bottom,10px) + 168px);
-    border:none; border-radius:18px; padding:14px 30px; z-index:11; cursor:pointer;
-    font-size:17px; font-weight:900; color:#fff; letter-spacing:.5px;
-    background:linear-gradient(135deg,#ff9d3f,#ff5e62);
-    box-shadow:0 8px 30px rgba(255,94,98,.5); display:none;
-    animation:startPulse 1.2s ease-in-out infinite alternate;
-  }
-  @keyframes startPulse { from{transform:translateX(-50%) scale(1)} to{transform:translateX(-50%) scale(1.06)} }
-
-  .round-btn.leave { background:linear-gradient(160deg,#ff5e62,#b3232f); }
-
-  /* ---------- Social ---------- */
-  .tabs { display:flex; gap:6px; margin-bottom:14px; }
-  .tab {
-    flex:1; padding:9px 4px; border-radius:12px; border:none; cursor:pointer;
-    background:rgba(255,255,255,.06); color:#8d93b8; font-weight:800; font-size:12px;
-  }
-  .tab.on { background:linear-gradient(135deg,#ff9d3f,#ff5e62); color:#fff; }
-  .ava {
-    width:38px; height:38px; border-radius:50%; flex:none; font-size:15px;
-    display:flex; align-items:center; justify-content:center; font-weight:900; color:#fff;
-  }
-  .target-card {
-    border-radius:18px; padding:16px; text-align:center; margin-bottom:10px;
-    background:linear-gradient(135deg,#1c2a4a,#14182e); border:1px solid rgba(255,255,255,.12);
-  }
-  .rank { width:26px; text-align:center; font-weight:900; color:#8d93b8; flex:none; }
-  #modal input {
-    user-select:text; -webkit-user-select:text; width:100%; padding:11px 14px; border-radius:12px;
-    margin-bottom:8px; border:1px solid rgba(255,255,255,.15);
-    background:rgba(255,255,255,.06); color:#fff; font-size:14px;
-  }
-
-  /* ---------- Banner / toast ---------- */
-  #banner {
-    position:absolute; top:23%; left:50%; transform:translate(-50%,0) scale(.7); z-index:20;
-    padding:14px 26px; border-radius:18px; text-align:center; opacity:0; pointer-events:none;
-    background:linear-gradient(135deg,rgba(124,47,247,.95),rgba(255,45,120,.95));
-    color:#fff; font-weight:900; box-shadow:0 8px 40px rgba(124,47,247,.6);
-    transition:opacity .25s, transform .25s;
-  }
-  #banner.show { opacity:1; transform:translate(-50%,0) scale(1); }
-  #banner .sub { font-size:12px; font-weight:700; opacity:.9; margin-top:3px; }
-
-  #toast {
-    position:absolute; top:calc(env(safe-area-inset-top,8px) + 104px); left:50%; transform:translateX(-50%);
-    background:rgba(20,24,40,.95); border:1px solid rgba(255,255,255,.14); color:#fff;
-    font-weight:700; font-size:13px; padding:9px 16px; border-radius:999px; z-index:30;
-    display:none; white-space:nowrap; box-shadow:0 4px 18px rgba(0,0,0,.5);
-  }
-
-  /* ---------- Modals ---------- */
-  #modal {
-    position:absolute; inset:0; z-index:40; background:rgba(0,0,5,.6); backdrop-filter:blur(3px);
-    display:flex; align-items:flex-end; opacity:0; pointer-events:none; transition:opacity .2s;
-  }
+  /* Modals */
+  #modal { position:absolute; inset:0; z-index:40; background:rgba(0,0,5,.62); backdrop-filter:blur(3px);
+    display:flex; align-items:flex-end; opacity:0; pointer-events:none; transition:opacity .2s; }
   #modal.open { opacity:1; pointer-events:auto; }
-  #modal-card {
-    width:100%; max-height:78%; overflow-y:auto; border-radius:24px 24px 0 0; padding:20px 16px 30px;
-    background:linear-gradient(180deg,#171a2e,#0e1020); border-top:1px solid rgba(255,255,255,.12);
-    color:#fff; transform:translateY(40px); transition:transform .22s;
-  }
-  #modal.open #modal-card { transform:translateY(0); }
-  .m-title { font-size:21px; font-weight:900; text-align:center; margin-bottom:4px; }
-  .m-sub { font-size:12px; color:#8d93b8; text-align:center; margin-bottom:14px; }
-  .m-close {
-    position:sticky; top:0; float:right; width:30px; height:30px; border-radius:50%;
-    border:none; background:rgba(255,255,255,.1); color:#aab; font-size:15px; cursor:pointer;
-  }
+  #card { width:100%; max-height:82%; overflow-y:auto; border-radius:24px 24px 0 0; padding:22px 16px 30px;
+    background:linear-gradient(180deg,#171a2e,#0e1020); border-top:1px solid rgba(255,255,255,.12); color:#fff;
+    transform:translateY(40px); transition:transform .22s; }
+  #modal.open #card { transform:translateY(0); }
+  .m-title { font-size:24px; font-weight:900; text-align:center; }
+  .m-sub { font-size:12.5px; color:#8d93b8; text-align:center; margin-bottom:14px; }
+  .m-close { position:sticky; top:0; float:right; width:30px; height:30px; border-radius:50%; border:none;
+    background:rgba(255,255,255,.1); color:#aab; font-size:15px; cursor:pointer; }
+  .big-num { font-size:54px; font-weight:900; text-align:center; margin:6px 0;
+    background:linear-gradient(#7ad7ff,#b06bff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .stat-row { display:flex; justify-content:space-between; font-size:14px; padding:7px 4px; color:#cfd3e8; }
+  .stat-row b { color:#fff; }
+  .cta { display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; border:none; border-radius:16px;
+    padding:15px; margin-top:9px; cursor:pointer; font-weight:900; font-size:16px; color:#fff;
+    background:linear-gradient(135deg,#19c3ff,#7b5cff); box-shadow:0 6px 24px rgba(80,120,255,.4); }
+  .cta .s { font-size:11.5px; font-weight:700; opacity:.9; }
+  .cta.ad { background:linear-gradient(135deg,#ff9d3f,#ff5e62); box-shadow:0 6px 24px rgba(255,94,98,.35); }
+  .cta.alt { background:rgba(255,255,255,.09); box-shadow:none; }
+  .cta:disabled { filter:grayscale(.7); opacity:.5; }
+  .tabs { display:flex; gap:6px; margin:4px 0 14px; }
+  .tab { flex:1; padding:9px; border-radius:12px; border:none; cursor:pointer; font-weight:800; font-size:12px;
+    background:rgba(255,255,255,.06); color:#8d93b8; }
+  .tab.on { background:linear-gradient(135deg,#19c3ff,#7b5cff); color:#fff; }
+  .row { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:16px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); margin-bottom:9px; }
+  .row .info { flex:1; min-width:0; }
+  .row .nm { font-weight:800; font-size:14px; }
+  .row .sb { font-size:11.5px; color:#8d93b8; margin-top:2px; }
+  .buy { border:none; border-radius:999px; padding:9px 14px; font-weight:800; font-size:13px; color:#fff;
+    background:linear-gradient(135deg,#2ecc71,#1ca35a); cursor:pointer; min-width:76px;
+    display:flex; align-items:center; justify-content:center; gap:5px; }
+  .buy svg { width:13px; height:13px; }
+  .buy.gems { background:linear-gradient(135deg,#ff5f9e,#d63a78); }
+  .buy.iap { background:linear-gradient(135deg,#3a8bff,#2a64d8); }
+  .buy:disabled { background:rgba(255,255,255,.12); color:#778; }
+  .rank { width:26px; text-align:center; font-weight:900; color:#8d93b8; }
 
-  .u-row {
-    display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:16px;
-    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); margin-bottom:9px;
-  }
-  .u-icon {
-    width:42px; height:42px; border-radius:12px; flex:none;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .u-icon svg { width:24px; height:24px; }
-  .u-info { flex:1; min-width:0; }
-  .u-name { font-weight:800; font-size:14px; }
-  .u-sub { font-size:11.5px; color:#8d93b8; margin-top:2px; }
-  .u-btn {
-    border:none; border-radius:999px; padding:9px 14px; font-weight:800; font-size:13px;
-    color:#fff; background:linear-gradient(135deg,#2ecc71,#1ca35a); cursor:pointer; min-width:78px;
-    display:flex; align-items:center; justify-content:center; gap:5px;
-  }
-  .u-btn svg { width:13px; height:13px; }
-  .u-btn:disabled { background:rgba(255,255,255,.12); color:#778; }
-  .u-btn.gems { background:linear-gradient(135deg,#ff5f9e,#d63a78); }
-  .u-btn.iap  { background:linear-gradient(135deg,#3a8bff,#2a64d8); }
-  .u-btn.ad   { background:linear-gradient(135deg,#ff9d3f,#ff5e62); }
-
-  .big-cta {
-    display:flex; flex-direction:column; align-items:center; gap:2px; width:100%;
-    border:none; border-radius:16px; padding:14px; margin-top:8px; cursor:pointer;
-    font-weight:900; font-size:15px; color:#fff;
-    background:linear-gradient(135deg,#ff9d3f,#ff5e62); box-shadow:0 6px 24px rgba(255,94,98,.35);
-  }
-  .big-cta .s { font-size:11.5px; font-weight:700; opacity:.92; }
-  .big-cta.alt { background:rgba(255,255,255,.09); box-shadow:none; }
-  .big-cta.purple { background:linear-gradient(135deg,#7b2ff7,#ff2d78); box-shadow:0 6px 24px rgba(123,47,247,.35); }
-  .big-cta:disabled { filter:grayscale(.8); opacity:.55; }
-
-  .starter {
-    border-radius:18px; padding:16px; text-align:center; margin-bottom:12px;
-    background:linear-gradient(135deg,#5b21d6,#2d2a8c);
-    border:1px solid rgba(255,255,255,.18); box-shadow:0 6px 30px rgba(91,33,214,.45);
-  }
-  .starter .t { font-weight:900; font-size:16px; letter-spacing:.5px; }
-  .starter .timer { color:#ffd54a; font-size:12px; font-weight:800; margin:7px 0 11px; }
-
-  .reward-big {
-    font-size:34px; font-weight:900; text-align:center; margin:14px 0;
-    background:linear-gradient(#7ad7ff,#cf9bff); -webkit-background-clip:text; background-clip:text; color:transparent;
-  }
-  .sec-label { font-size:11px; font-weight:900; letter-spacing:1.2px; color:#8d93b8; margin:16px 4px 8px; }
-
-  /* ---------- Ad overlay ---------- */
-  #ad-overlay {
-    position:absolute; inset:0; z-index:60; background:rgba(2,2,8,.96);
-    display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-    color:#fff; text-align:center;
-  }
-  #ad-overlay .ring {
-    width:88px; height:88px; border-radius:50%; border:4px solid rgba(255,255,255,.15);
-    border-top-color:#ff9d3f; animation:spin 1s linear infinite;
-    display:flex; align-items:center; justify-content:center;
-  }
-  #ad-overlay .ring svg { width:34px; height:34px; }
-  @keyframes spin { to { transform:rotate(360deg); } }
-  #ad-overlay .note { color:#667; font-size:11.5px; max-width:250px; }
+  /* Ad overlay */
+  #ad { position:absolute; inset:0; z-index:60; background:rgba(2,2,8,.96); display:none;
+    flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#fff; text-align:center; }
+  #ad .ring { width:84px; height:84px; border-radius:50%; border:4px solid rgba(255,255,255,.15);
+    border-top-color:#ff9d3f; animation:spin 1s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  #ad .note { color:#667; font-size:11.5px; max-width:240px; }
+  #toast { position:absolute; top:calc(env(safe-area-inset-top,8px) + 70px); left:50%; transform:translateX(-50%);
+    background:rgba(20,24,40,.95); border:1px solid rgba(255,255,255,.14); color:#fff; font-weight:700; font-size:13px;
+    padding:9px 16px; border-radius:999px; z-index:55; display:none; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -283,1607 +107,424 @@
   <canvas id="cv"></canvas>
 
   <div id="hud">
-    <div class="pill" id="cash-pill"></div>
-    <div class="pill" id="depth-pill"></div>
-    <div class="pill" id="gems-pill"></div>
+    <div>
+      <div id="dist">0<small>m</small></div>
+      <div id="best"></div>
+    </div>
+    <div class="pill" id="gem-pill"></div>
   </div>
-  <div id="energy-wrap"><div id="energy-bar"></div><div id="energy-label"></div></div>
-  <div id="time-top"><div id="time-top-bar"></div></div>
-  <div id="announce"></div>
-  <button id="btn-box"><span class="badge on" id="box-count">0</span></button>
-  <div id="chips"></div>
   <div id="combo"></div>
-  <div id="banner"></div>
+  <div id="announce"></div>
+
+  <div id="start">
+    <h1>DEEP DIVE</h1>
+    <div class="tagline">how deep can you drill?</div>
+    <button id="taptodive">TAP TO DIVE</button>
+    <div class="hint">Hold to steer <b>right</b>, release to drift <b>left</b>. Dodge the walls and spikes. It only gets faster.</div>
+    <div class="menu-row">
+      <button class="menu-btn" id="m-shop"></button>
+      <button class="menu-btn" id="m-rank"></button>
+      <button class="menu-btn" id="m-set"></button>
+    </div>
+  </div>
+
+  <div id="modal"><div id="card"></div></div>
+  <div id="ad"><div class="ring"></div><div style="font-size:18px;font-weight:800">Simulated ad &bull; <span id="ad-s">3</span>s</div><div class="note">The iOS build plays a real rewarded video here (AdMob).</div></div>
   <div id="toast"></div>
-
-  <button id="btn-start">START</button>
-  <div id="controls">
-    <div class="btn-col">
-      <button class="round-btn" id="btn-upg"><span class="badge" id="upg-badge">!</span></button>
-      <button class="round-btn" id="btn-bomb"><span id="bomb-count">0</span></button>
-    </div>
-    <div id="joy"><div id="joy-knob"></div></div>
-    <div class="btn-col">
-      <button class="round-btn" id="btn-social"><span class="badge" id="soc-badge">!</span></button>
-      <button class="round-btn" id="btn-shop"></button>
-    </div>
-  </div>
-
-  <div id="modal"><div id="modal-card"></div></div>
-  <div id="ad-overlay">
-    <div class="ring" id="ad-ring"></div>
-    <div style="font-size:18px;font-weight:800">Simulated ad &bull; <span id="ad-secs">3</span>s</div>
-    <div class="note">The iOS build plays a real rewarded video here (AdMob).</div>
-  </div>
 </div>
 
 <script>
 "use strict";
-// Surface any startup error on screen (mobile browsers hide the console)
-window.addEventListener("error",function(e){
- var d=document.createElement("div");
- d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a00;color:#fff;font:12px monospace;padding:8px;white-space:pre-wrap;";
- d.textContent="Error: "+(e.message||e.type)+(e.filename?" @"+e.lineno:"");
- document.body.appendChild(d);
-});
-// Tester backdoor: open the game with ?reset in the URL to wipe the save.
-// No in-game reset exists for players.
-if(location.search.indexOf("reset")>-1){
- try{ localStorage.removeItem("gm-deep"); }catch(e){}
- location.replace(location.pathname);
-}
-/* =================== Helpers =================== */
+window.addEventListener("error",e=>{ const d=document.createElement("div");
+  d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a00;color:#fff;font:12px monospace;padding:8px;white-space:pre-wrap";
+  d.textContent="Error: "+(e.message||e.type)+(e.filename?" @"+e.lineno:""); document.body.appendChild(d); });
+if(location.search.indexOf("reset")>-1){ try{localStorage.removeItem("gm-dive");}catch(e){} location.replace(location.pathname); }
+
+/* ===== helpers ===== */
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const rand=(a,b)=>a+Math.random()*(b-a);
-const SUF=["","K","M","B","T","Qa","Qi"];
-function fmt(n){ if(n<1000) return n<10&&n!==Math.round(n)?n.toFixed(1):Math.round(n)+"";
-  let i=0; while(n>=1000&&i<SUF.length-1){n/=1000;i++;}
-  return n.toFixed(n>=100?0:n>=10?1:2)+SUF[i]; }
-function dur(s){ s=Math.max(0,Math.floor(s));
-  if(s>=3600) return Math.floor(s/3600)+"h "+Math.floor(s%3600/60)+"m";
-  if(s>=60) return Math.floor(s/60)+"m "+(s%60)+"s"; return s+"s"; }
+const lerp=(a,b,t)=>a+(b-a)*t;
 const nowS=()=>Date.now()/1000;
-
-/* =================== SVG icons (no emojis) =================== */
-const IC={
-coin:c=>`<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" fill="${c||'#ffd24a'}"/><circle cx="12" cy="12" r="6.5" fill="none" stroke="rgba(120,70,0,.55)" stroke-width="2"/><path d="M12 8v8M9.7 9.8h3.4a1.7 1.7 0 010 3.4H11a1.7 1.7 0 000 3.4h3.3" stroke="rgba(120,70,0,.8)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`,
-gem:c=>`<svg viewBox="0 0 24 24"><path d="M12 2L21 9.5 12 22 3 9.5z" fill="${c||'#ff5f9e'}"/><path d="M12 2l3.5 7.5L12 22 8.5 9.5z" fill="rgba(255,255,255,.35)"/></svg>`,
-bolt:c=>`<svg viewBox="0 0 24 24"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z" fill="${c||'#19e3b1'}"/></svg>`,
-drill:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffb14a'}" stroke-width="2" stroke-linecap="round"><path d="M3 21l6-6M9 15l6 2 6-6-8-8-6 6 2 6z"/><path d="M13 3l8 8"/></svg>`,
-tank:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#19e3b1'}" stroke-width="2" stroke-linecap="round"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 2h6M12 9v6M9.5 11.5L12 9l2.5 2.5"/></svg>`,
-regen:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><path d="M20 11a8 8 0 10.6 4"/><path d="M20 4v7h-7"/></svg>`,
-robot:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#cf9bff'}" stroke-width="2" stroke-linecap="round"><rect x="5" y="8" width="14" height="11" rx="3"/><circle cx="9.5" cy="13" r="1.3" fill="${c||'#cf9bff'}" stroke="none"/><circle cx="14.5" cy="13" r="1.3" fill="${c||'#cf9bff'}" stroke="none"/><path d="M12 8V4M8 4h8M8 22v-3M16 22v-3"/></svg>`,
-play:c=>`<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="${c||'#fff'}"/></svg>`,
-bag:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><path d="M5 8h14l-1.2 12a2 2 0 01-2 1.8H8.2a2 2 0 01-2-1.8L5 8z"/><path d="M8.5 10V6.5a3.5 3.5 0 017 0V10"/></svg>`,
-chest:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><rect x="3" y="6" width="18" height="14" rx="2.5"/><path d="M3 12h18M12 10.5v3.5"/></svg>`,
-arrow:r=>`<svg viewBox="0 0 24 24" style="transform:rotate(${r}deg)" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>`,
-relic:c=>`<svg viewBox="0 0 24 24"><path d="M12 2l2.6 6.8L21 11l-6.4 2.2L12 20l-2.6-6.8L3 11l6.4-2.2z" fill="${c||'#cf9bff'}"/></svg>`,
-depth:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#9fd8ff'}" stroke-width="2" stroke-linecap="round"><path d="M12 3v14M7 12l5 5 5-5"/><path d="M4 21h16"/></svg>`,
-shield:c=>`<svg viewBox="0 0 24 24"><path d="M12 2l8 3v6c0 5-3.4 9.2-8 11-4.6-1.8-8-6-8-11V5z" fill="${c||'#7ad7ff'}"/><path d="M12 2l8 3v6c0 5-3.4 9.2-8 11z" fill="rgba(255,255,255,.18)"/></svg>`,
-raid:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ff7a5c'}" stroke-width="2.2" stroke-linecap="round"><path d="M4 4l13 13M20 4L7 17"/><path d="M15.5 18.5l3-3M5.5 15.5l3 3"/><circle cx="18" cy="19" r="1.6"/><circle cx="6" cy="19" r="1.6"/></svg>`,
-trophy:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 5H4.5a3.5 3.5 0 003.5 5M16 5h3.5a3.5 3.5 0 01-3.5 5"/><path d="M12 13v4M8 21h8M10 17h4v4h-4z"/></svg>`,
-users:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20a6 6 0 0112 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.6A5.5 5.5 0 0121 20"/></svg>`,
-};
-
-/* =================== Tiles & balance =================== */
-const COLS=9;
-const T={EMPTY:0,DIRT:1,CLAY:2,STONE:3,OBSIDIAN:4,GOLD:5,EMERALD:6,RUBY:7,SAPPHIRE:8,DIAMOND:9,CHEST:10,ENERGY:11,BEDROCK:12,VAULT:13,MONSTER:14,RELIC:15};
-const TDEF={
- [T.DIRT]:    {hp:30, cost:3, top:"#9c6b33", bot:"#6f4a20"},
- [T.CLAY]:    {hp:55, cost:4, top:"#a8593a", bot:"#73381f"},
- [T.STONE]:   {hp:120,cost:7, top:"#6f7787", bot:"#454c5c"},
- [T.OBSIDIAN]:{hp:280,cost:12,top:"#473d63", bot:"#241d38"},
- [T.GOLD]:    {hp:60, cost:5, gem:"#ffd24a", value:10,  name:"Gold"},
- [T.EMERALD]: {hp:90, cost:6, gem:"#3ddc84", value:26,  name:"Emerald"},
- [T.RUBY]:    {hp:130,cost:8, gem:"#ff4d6d", value:62,  name:"Ruby"},
- [T.SAPPHIRE]:{hp:190,cost:10,gem:"#4d79ff", value:150, name:"Sapphire"},
- [T.DIAMOND]: {hp:280,cost:13,gem:"#b9f2ff", value:420, name:"Diamond"},
- [T.CHEST]:   {hp:50, cost:4, gem:"#ffd24a"},
- [T.ENERGY]:  {hp:35, cost:0, gem:"#19e3b1"},
- [T.BEDROCK]: {hp:Infinity, cost:99, top:"#15161f", bot:"#0a0b12"},
- [T.VAULT]:   {hp:150, cost:6, gem:"#ffd24a"},
- [T.MONSTER]: {hp:420, cost:0, top:"#3a2350", bot:"#1d1030"},
- [T.RELIC]:   {hp:200, cost:8, top:"#6f7787", bot:"#454c5c"},  // disguised as stone
-};
-const BAL={
- powerDmg:l=>62*Math.pow(1.45,l-1),
- powerCost:l=>60*Math.pow(2.3,l-1),
- tankMax:l=>100+30*(l-1),
- tankCost:l=>80*Math.pow(2.2,l-1),
- regenRate:l=>0.9*(1+0.35*(l-1)),
- regenCost:l=>70*Math.pow(2.2,l-1),
- oreScale:d=>1+d/38,
- boostDur:4*3600, frenzyDur:60,
- relicBonus:0.20, prestigeDepth:300,
- relicWorldHp:0.30,                 // NG+: every relic makes ALL rock 30% tougher
- freeGems:10, freeGemsCd:1800,
- starterWindow:6*3600,              // starter pack offer expires after 6h
- shieldDur:12*3600,                 // shield protects for 12h...
- shieldCdFree:10*3600,              // ...then 10h recharge if activated free
- shieldCdGem:2*3600,                // gem purchase recharges in only 2h
- shieldAdCut:2*3600, shieldAdMaxCuts:3, shieldCost:50,
- decoyCost:20, decoyMax:3,
- bombCost:12, bombMax:5,
- wingsDur:30,                       // upward flight powerup (from chests)
- monsterDrain:12,                   // energy/sec a monster bites back while fighting
- levelTime:60,                      // each level: 60 seconds on the clock
- levelDepth:n=>10+4*n,              // depth goal per level
- levelCash:n=>Math.round(55*Math.pow(1.35,n-1)),  // collection goal per level
- loseKeep:0.2, loseKeepAd:0.4,      // money kept on a failed level
- winAdMult:2,                       // 200% of the pot when winning + ad
- passWinBonus:1.25,                 // Battle Pass: +25% level winnings
- passDailyGems:20,
-};
-
-// Drill skins: distinct body DESIGN + colors, not palette swaps.
-const SKINS=[
- {id:"default", name:"Rusty Rig",        cost:0,    design:"rig",     top:"#ffb14a", bot:"#e2641f", glow:null},
- {id:"emerald", name:"Emerald Borer",    cost:120,  design:"borer",   top:"#7df0b2", bot:"#1ca35a", glow:"#3ddc84"},
- {id:"sapphire",name:"Sapphire Striker", cost:250,  design:"striker", top:"#7aa8ff", bot:"#2a64d8", glow:"#4d79ff"},
- {id:"magma",   name:"Magma Crawler",    cost:450,  design:"crawler", top:"#ff8a5c", bot:"#c2231f", glow:"#ff5e62"},
- {id:"void",    name:"Void Orb",         cost:800,  design:"orb",     top:"#9b6bff", bot:"#3d1d78", glow:"#cf9bff"},
- {id:"gold",    name:"Golden Monarch",   cost:1500, design:"crown",   top:"#ffe27a", bot:"#d99a1f", glow:"#ffd24a"},
-];
-
-// Elite drills: unlockable ONLY by spending relics. Distinct hulls, wings,
-// orbiting orbs, rings — visibly a tier above the gem skins.
-const ELITE=[
- {id:"reaper",   name:"Obsidian Reaper",  relicCost:1,    design:"elite", hull:"diamond", top:"#3b3b4a", bot:"#0d0d14", glow:"#ff2d55", wings:"scythe", wingCol:"#16161f"},
- {id:"seraph",   name:"Crystal Seraph",   relicCost:5,    design:"elite", hull:"diamond", top:"#eaf8ff", bot:"#8fd0ff", glow:"#bdeaff", wings:"ice",    wingCol:"#dff4ff"},
- {id:"wyrm",     name:"Plasma Wyrm",      relicCost:20,   design:"elite", hull:"serpent", top:"#9bff8a", bot:"#0fae5f", glow:"#52ffa8", orbs:2},
- {id:"titan",    name:"Storm Titan",      relicCost:50,   design:"elite", hull:"dragon",  top:"#cfd8ff", bot:"#4a5dbb", glow:"#7a8cff", spikes:true},
- {id:"phoenix",  name:"Solar Phoenix",    relicCost:100,  design:"elite", hull:"diamond", top:"#ffd76a", bot:"#ff5e2e", glow:"#ffae3d", wings:"flame",  wingCol:"#ff7a2e"},
- {id:"leviathan",name:"Frost Leviathan",  relicCost:200,  design:"elite", hull:"serpent", top:"#d8fbff", bot:"#3d7ba8", glow:"#9be8ff", wings:"ice",    wingCol:"#bfeffd", spikes:true},
- {id:"nebula",   name:"Nebula Whale",     relicCost:400,  design:"elite", hull:"serpent", top:"#7a5cff", bot:"#241a55", glow:"#b39bff", orbs:3},
- {id:"dragon",   name:"Dragon Engine",    relicCost:800,  design:"elite", hull:"dragon",  top:"#ff8a5c", bot:"#7a1d12", glow:"#ff6a3d", wings:"flame",  wingCol:"#ffb05c", spikes:true},
- {id:"forge",    name:"Galaxy Forge",     relicCost:1500, design:"elite", hull:"core",    top:"#ffe27a", bot:"#b8541f", glow:"#ffd24a", ring:true, orbs:2},
- {id:"omega",    name:"Omega Core",       relicCost:3000, design:"elite", hull:"core",    top:"#ffffff", bot:"#6a5cff", glow:"#9bffec", ring:true, orbs:3, spikes:true},
-];
-const ALLSKINS=SKINS.concat(ELITE);
-const skinById=id=>ALLSKINS.find(k=>k.id===id)||SKINS[0];
-
-/* =================== State =================== */
-let S={
- cash:0, gems:10, energy:100,
- up:{power:1,tank:1,regen:1,robo:0},
- bestDepth:0, bestRunDepth:0, relics:0, prestiges:0,
- boostUntil:0, frenzyUntil:0, freeGemsAt:0,
- perm2x:false, removeAds:false, starterBought:false,
- milestone:0, lastSeen:Date.now(), firstLaunch:Date.now(),
- daily:{last:0,streak:0},
- shieldUntil:0, shieldCdUntil:0, shieldAdCuts:0, decoys:0, bombs:1, wingsUntil:0,
- raidTickets:3, ticketAt:nowS(), raidsWon:0,
- skins:["default"], skin:"default",
- level:1, maxLevel:1, battlePass:false, boxes:[],
- feed:[], friends:[{name:"Maya",seed:9117},{name:"Tom",seed:4203}],
-};
-try{ const raw=JSON.parse(localStorage.getItem("gm-deep")||"{}");
-     S={...S,...raw,up:{...S.up,...(raw.up||{})},daily:{...S.daily,...(raw.daily||{})}}; }catch(e){}
-// migrate older saves to the reworked defense/skin rules
-if(S.shields>0){ S.shieldUntil=nowS()+BAL.shieldDur; }   // legacy shield -> timed shield
-delete S.shields;
-if(!Array.isArray(S.skins)||!S.skins.length) S.skins=["default"];
-if(!S.skins.includes(S.skin)) S.skin="default";
-const save=()=>{ S.lastSeen=Date.now(); try{localStorage.setItem("gm-deep",JSON.stringify(S));}catch(e){} };
-
-const boostOn=()=>S.boostUntil>nowS();
-const frenzyOn=()=>S.frenzyUntil>nowS();
-const shieldOn=()=>S.shieldUntil>nowS();
-const wingsOn=()=>S.wingsUntil>nowS();
-const incomeMult=()=>(1+S.relics*BAL.relicBonus)*(boostOn()?2:1)*(S.perm2x?2:1);
-// relics no longer boost dig power — the world gets harder, you get richer
-const digPower=()=>BAL.powerDmg(S.up.power);
-const maxEnergy=()=>BAL.tankMax(S.up.tank);
-const ticketCap=()=>S.battlePass?4:3;   // Battle Pass: one extra raid ticket slot
-
-/* =================== World gen =================== */
-let rows={};
-let RNG=Math.random;                 // swapped for a seeded PRNG inside raids
-const RAID_ROWS=26, RAID_TIME=45;
-let raid=null, worldBackup=null;
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
- t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const SUF=["","K","M","B"];
+function fmt(n){ if(n<1000) return Math.round(n)+""; let i=0; while(n>=1000&&i<SUF.length-1){n/=1000;i++;}
+  return n.toFixed(n>=100?0:1)+SUF[i]; }
+function dur(s){ s=Math.max(0,Math.floor(s)); if(s>=3600)return Math.floor(s/3600)+"h "+Math.floor(s%3600/60)+"m";
+  if(s>=60)return Math.floor(s/60)+"m "+(s%60)+"s"; return s+"s"; }
 function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
 
-function genTile(d){
- const r=RNG();
- let base = d<25?T.DIRT : d<60?(r<0.6?T.DIRT:T.CLAY) : d<140?(RNG()<0.55?T.CLAY:T.STONE)
-          : d<280?(RNG()<0.6?T.STONE:T.OBSIDIAN) : T.OBSIDIAN;
- const roll=RNG();
- if(d>2&&roll<0.012) return T.CHEST;
- if(d>4&&roll<0.012+0.035) return T.ENERGY;
- if(d>15&&roll<0.047+0.009) return T.MONSTER;   // cave monsters guard the depths
- const oreP=0.10+Math.min(0.15,d/800);
- if(roll<0.056+oreP){
-   const avail=[];
-   if(d>=5) avail.push([T.GOLD,5]);
-   if(d>=30) avail.push([T.EMERALD,4]);
-   if(d>=70) avail.push([T.RUBY,3]);
-   if(d>=140) avail.push([T.SAPPHIRE,2]);
-   if(d>=220) avail.push([T.DIAMOND,1]);
-   if(avail.length){
-     let tot=avail.reduce((a,x)=>a+x[1],0), pick=RNG()*tot;
-     for(const [t,w] of avail){ pick-=w; if(pick<=0) return t; }
-   }
- }
- return base;
-}
-function getRow(r){
- if(!rows[r]){ rows[r]=[]; for(let c=0;c<COLS;c++){
-   let t = r<0?T.EMPTY : (raid&&r>=RAID_ROWS)?T.BEDROCK : genTile(r+1);
-   // rock toughens with depth, and every relic hardens the whole world (NG+)
-   const hp=t===T.EMPTY?0:TDEF[t].hp*(1+Math.max(0,r)/300)*(1+BAL.relicWorldHp*S.relics);
-   rows[r].push({t,hp,maxHp:hp||1});
- }} return rows[r];
-}
-const getTile=(c,r)=> (c<0||c>=COLS)?null : r<0?{t:T.EMPTY}:getRow(r)[c];
+/* ===== icons ===== */
+const IC={
+gem:c=>`<svg viewBox="0 0 24 24"><path d="M12 2L21 9.5 12 22 3 9.5z" fill="${c||'#ff5f9e'}"/><path d="M12 2l3.5 7.5L12 22 8.5 9.5z" fill="rgba(255,255,255,.35)"/></svg>`,
+bag:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><path d="M5 8h14l-1.2 12a2 2 0 01-2 1.8H8.2a2 2 0 01-2-1.8L5 8z"/><path d="M8.5 10V6.5a3.5 3.5 0 017 0V10"/></svg>`,
+trophy:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 5H4.5a3.5 3.5 0 003.5 5M16 5h3.5a3.5 3.5 0 01-3.5 5"/><path d="M12 13v4M8 21h8M10 17h4v4h-4z"/></svg>`,
+gear:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#8d93b8'}" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke-linecap="round"/></svg>`,
+play:c=>`<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="${c||'#fff'}"/></svg>`,
+};
 
-/* =================== Canvas =================== */
+/* ===== drills (skins) ===== */
+const SKINS=[
+ {id:"rig",   name:"Rusty Rig",     cost:0,    top:"#ffb14a", bot:"#e2641f", glow:null},
+ {id:"aqua",  name:"Aqua Borer",    cost:120,  top:"#7df0ff", bot:"#1c8fb0", glow:"#7df0ff"},
+ {id:"viper", name:"Viper",         cost:260,  top:"#9bff8a", bot:"#1ca35a", glow:"#52ffa8"},
+ {id:"magma", name:"Magma Lance",   cost:500,  top:"#ff8a5c", bot:"#c2231f", glow:"#ff5e62"},
+ {id:"void",  name:"Void Spike",    cost:1000, top:"#c89bff", bot:"#3d1d78", glow:"#cf9bff"},
+ {id:"gold",  name:"Gold Monarch",  cost:2200, top:"#ffe27a", bot:"#d99a1f", glow:"#ffd24a"},
+];
+const skinById=id=>SKINS.find(s=>s.id===id)||SKINS[0];
+
+/* ===== state / save ===== */
+let S={ gems:30, best:0, runs:0, skin:"rig", skins:["rig"],
+        shieldLvl:0, magnetLvl:0, removeAds:false, battlePass:false, haptics:true,
+        daily:{last:0,streak:0} };
+try{ const r=JSON.parse(localStorage.getItem("gm-dive")||"{}"); S={...S,...r,skins:r.skins||["rig"],daily:{...S.daily,...(r.daily||{})}}; }catch(e){}
+if(!S.skins.includes(S.skin)) S.skin="rig";
+const save=()=>{ try{localStorage.setItem("gm-dive",JSON.stringify(S));}catch(e){} };
+
+const BAL={
+ baseSpeed:250, speedGain:0.05, speedCap:780,   // descent px/s vs depth(m)
+ accel:3100, vmax:560,                          // lateral control
+ sliceH:16, baseHalf:152, halfShrink:0.022, minHalf:46,
+ spikeBase:0.006, spikeGain:0.00002,            // spike spawn chance per slice
+ gemChance:0.07, nearMiss:13,
+ drillR:14, pxPerM:7,                           // 7 world px = 1 meter of depth
+ biome:500,                                     // metres per biome
+ shieldFromLvl:l=>l,                            // hits absorbed at run start
+ shieldCost:l=>Math.round(120*Math.pow(2.2,l)),
+ magnetCost:l=>Math.round(100*Math.pow(2.3,l)),
+};
+const biomeAt=m=>[["#0a1830","#040a14"],["#10210f","#06120a"],["#241026","#120618"],
+ ["#0d1d2e","#05101c"],["#2a1208","#140804"],["#0f0f1f","#06060f"]][Math.floor(m/BAL.biome)%6];
+const biomeName=m=>["The Crust","Mossfall","Crystal Deep","Drowned Caves","Magma Veins","The Abyss"][Math.floor(m/BAL.biome)%6];
+
+/* ===== canvas ===== */
 const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
-let W=0,H=0,TS=0,dpr=1;
-const sprites={};
-function resize(){
- const g=document.getElementById("game");
- W=g.clientWidth; H=g.clientHeight; dpr=Math.min(window.devicePixelRatio||1,2);
- cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+"px"; cv.style.height=H+"px";
- TS=W/COLS; buildSprites();
-}
-function buildSprites(){
- for(const k of Object.keys(TDEF)){
-  const t=+k, d=TDEF[t], s=document.createElement("canvas");
-  s.width=s.height=Math.ceil(TS*dpr); const c=s.getContext("2d"); c.scale(dpr,dpr);
-  const host = t===T.GOLD?TDEF[T.CLAY] : t>=T.EMERALD&&t<=T.DIAMOND?TDEF[T.STONE]
-             : t===T.CHEST||t===T.ENERGY?TDEF[T.DIRT] : t===T.VAULT?TDEF[T.STONE] : d;
-  const g=c.createLinearGradient(0,0,0,TS);
-  g.addColorStop(0,host.top||"#888"); g.addColorStop(1,host.bot||"#555");
-  c.fillStyle=g; c.fillRect(0,0,TS,TS);
-  for(let i=0;i<14;i++){ c.fillStyle=`rgba(${Math.random()<0.5?0:255},${Math.random()<0.5?0:255},255,${rand(0.03,0.08)})`;
-    c.fillRect(rand(2,TS-4),rand(2,TS-4),rand(1.5,3.5),rand(1.5,3.5)); }
-  c.fillStyle="rgba(255,255,255,.13)"; c.fillRect(0,0,TS,2.5);
-  c.fillStyle="rgba(0,0,0,.28)"; c.fillRect(0,TS-3,TS,3);
-  c.fillRect(TS-2.5,0,2.5,TS);
-  if(d.gem&&t!==T.CHEST&&t!==T.ENERGY&&t!==T.VAULT){ drawGem(c,TS/2,TS/2,TS*0.3,d.gem); }
-  if(t===T.ENERGY){ drawBoltShape(c,TS/2,TS/2,TS*0.3); }
-  if(t===T.CHEST){ drawChest(c,TS/2,TS/2,TS*0.62); }
-  if(t===T.VAULT){ drawVault(c,TS); }
-  if(t===T.MONSTER){ drawMonster(c,TS); }
-  if(t===T.RELIC){
-    // disguised as stone: only a faint purple shimmer betrays it
-    c.fillStyle="rgba(207,155,255,.18)";
-    for(let i=0;i<5;i++) c.fillRect(rand(4,TS-6),rand(4,TS-6),2,2);
+let W=0,H=0,dpr=1,DRILLY=0;
+function resize(){ const g=document.getElementById("game"); W=g.clientWidth; H=g.clientHeight;
+ dpr=Math.min(window.devicePixelRatio||1,2); cv.width=W*dpr; cv.height=H*dpr;
+ cv.style.width=W+"px"; cv.style.height=H+"px"; ctx.setTransform(dpr,0,0,dpr,0,0); DRILLY=H*0.3; }
+
+/* ===== world generation ===== */
+let slices=[], genIdx=0, genCx=0, genHalf=0, genSpike=null;
+function resetWorld(){ slices=[]; genIdx=0; genCx=W/2; genHalf=BAL.baseHalf; genSpike=null; }
+function genTo(idx){
+ while(genIdx<=idx){
+  const m=genIdx*BAL.sliceH/BAL.pxPerM;
+  let half=Math.max(BAL.minHalf, BAL.baseHalf - m*BAL.halfShrink) + Math.sin(genIdx*0.06)*16;
+  // gentle opening for the first stretch so players learn
+  if(m<40) half=Math.max(half, BAL.baseHalf*0.95);
+  genHalf=lerp(genHalf,half,0.25);
+  genCx+=rand(-1,1)*Math.min(7, 2+m*0.02);
+  genCx=clamp(genCx, genHalf+8, W-genHalf-8);
+  let li=0,ri=0;
+  if(!genSpike && m>32 && Math.random()<BAL.spikeBase+m*BAL.spikeGain){
+   genSpike={side:Math.random()<0.5?-1:1, len:rand(28, Math.min(genHalf*1.3, 130)), span:Math.floor(rand(3,6)), i:0};
   }
-  if(t===T.BEDROCK){
-    c.strokeStyle="rgba(255,255,255,.06)"; c.lineWidth=4;
-    for(let i=-1;i<4;i++){ c.beginPath(); c.moveTo(i*TS*0.4,TS); c.lineTo(i*TS*0.4+TS*0.5,0); c.stroke(); }
-  }
-  sprites[t]=s;
+  if(genSpike){ const t=genSpike.i/(genSpike.span); const prof=Math.sin(t*Math.PI);
+   const inset=genSpike.len*prof; if(genSpike.side<0) li=inset; else ri=inset;
+   genSpike.i++; if(genSpike.i>genSpike.span) genSpike=null; }
+  let gem=null;
+  if(!li&&!ri&&m>10&&Math.random()<BAL.gemChance){ gem={x:genCx+rand(-1,1)*(genHalf-20), taken:false}; }
+  slices[genIdx]={cx:genCx, half:genHalf, li, ri, gem};
+  genIdx++;
  }
 }
-function drawGem(c,x,y,r,col){
- c.save(); c.translate(x,y);
- c.shadowColor=col; c.shadowBlur=10;
- c.beginPath(); c.moveTo(0,-r); c.lineTo(r*0.85,-r*0.25); c.lineTo(r*0.55,r);
- c.lineTo(-r*0.55,r); c.lineTo(-r*0.85,-r*0.25); c.closePath();
- c.fillStyle=col; c.fill(); c.shadowBlur=0;
- c.beginPath(); c.moveTo(0,-r); c.lineTo(r*0.3,-r*0.1); c.lineTo(0,r*0.85); c.lineTo(-r*0.35,-r*0.05); c.closePath();
- c.fillStyle="rgba(255,255,255,.45)"; c.fill();
- c.restore();
-}
-function drawBoltShape(c,x,y,r){
- c.save(); c.translate(x,y); c.shadowColor="#19e3b1"; c.shadowBlur=12;
- c.beginPath(); c.moveTo(r*0.15,-r); c.lineTo(-r*0.7,r*0.2); c.lineTo(-r*0.05,r*0.2);
- c.lineTo(-r*0.15,r); c.lineTo(r*0.7,-r*0.2); c.lineTo(r*0.05,-r*0.2); c.closePath();
- c.fillStyle="#3df0c4"; c.fill(); c.restore();
-}
-function drawChest(c,x,y,s){
- c.save(); c.translate(x-s/2,y-s/2);
- c.shadowColor="#ffd24a"; c.shadowBlur=8;
- c.fillStyle="#8a5a2b"; roundRect(c,0,s*0.18,s,s*0.66,4); c.fill(); c.shadowBlur=0;
- c.fillStyle="#a8753c"; roundRect(c,0,s*0.18,s,s*0.24,4); c.fill();
- c.fillStyle="#ffd24a"; c.fillRect(s*0.42,s*0.3,s*0.16,s*0.3);
- c.strokeStyle="rgba(0,0,0,.4)"; c.lineWidth=1.5; roundRect(c,0,s*0.18,s,s*0.66,4); c.stroke();
- c.restore();
-}
-function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r);
- c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
-function drawMonster(c,sz){
- c.save();
- c.fillStyle="#4b2a6b";
- c.beginPath(); c.arc(sz/2,sz*0.56,sz*0.3,0,7); c.fill();
- c.fillStyle="#2c1840";
- for(let i=0;i<5;i++){ const a=Math.PI*(0.15+i*0.175);
-  const x=sz/2+Math.cos(a)*sz*0.27, y=sz*0.56-Math.sin(a)*sz*0.27;
-  c.beginPath(); c.moveTo(x,y);
-  c.lineTo(x+Math.cos(a)*sz*0.14, y-Math.sin(a)*sz*0.14);
-  c.lineTo(x+Math.cos(a+0.6)*sz*0.06, y-Math.sin(a+0.6)*sz*0.06);
-  c.closePath(); c.fill(); }
- c.shadowColor="#ff4d6d"; c.shadowBlur=8; c.fillStyle="#ff4d6d";
- c.beginPath(); c.arc(sz*0.42,sz*0.5,sz*0.05,0,7); c.fill();
- c.beginPath(); c.arc(sz*0.6,sz*0.5,sz*0.05,0,7); c.fill();
- c.shadowBlur=0;
- c.fillStyle="#fff";
- for(let i=0;i<4;i++){ const x=sz*0.38+i*sz*0.08;
-  c.beginPath(); c.moveTo(x,sz*0.66); c.lineTo(x+sz*0.045,sz*0.66);
-  c.lineTo(x+sz*0.022,sz*0.74); c.closePath(); c.fill(); }
- c.restore();
-}
-function drawVault(c,size){
- c.save();
- c.shadowColor="#ffd24a"; c.shadowBlur=10;
- c.fillStyle="#343b4e"; roundRect(c,size*0.12,size*0.12,size*0.76,size*0.76,5); c.fill();
- c.shadowBlur=0;
- c.strokeStyle="#11141d"; c.lineWidth=2.5; roundRect(c,size*0.12,size*0.12,size*0.76,size*0.76,5); c.stroke();
- c.strokeStyle="rgba(255,255,255,.15)"; c.lineWidth=1.5;
- roundRect(c,size*0.19,size*0.19,size*0.62,size*0.62,4); c.stroke();
- c.beginPath(); c.arc(size/2,size/2,size*0.18,0,7);
- c.strokeStyle="#ffd24a"; c.lineWidth=3; c.stroke();
- for(let i=0;i<4;i++){ const a=i*Math.PI/2+Math.PI/4;
-  c.beginPath(); c.moveTo(size/2+Math.cos(a)*size*0.18,size/2+Math.sin(a)*size*0.18);
-  c.lineTo(size/2+Math.cos(a)*size*0.28,size/2+Math.sin(a)*size*0.28); c.stroke(); }
- c.beginPath(); c.arc(size/2,size/2,size*0.05,0,7); c.fillStyle="#ffd24a"; c.fill();
- c.restore();
-}
+function sliceAt(worldY){ const i=Math.floor(worldY/BAL.sliceH); if(i<0) return slices[0]||{cx:W/2,half:BAL.baseHalf,li:0,ri:0}; genTo(i); return slices[i]; }
 
-/* =================== Drill / particles =================== */
-const drill={col:4,row:-1,px:0,py:0,anim:null,dir:[0,1],bitSpin:0};
-drill.px=drill.col*TS; drill.py=drill.row*TS;
-let camY=0, shake=0;
-const parts=[], floats=[];
-function spawnParts(x,y,col,n,spread){
- for(let i=0;i<n;i++) parts.push({x,y,vx:rand(-spread,spread),vy:rand(-spread*1.4,-spread*0.2),
-   life:rand(0.35,0.7),max:0.7,size:rand(2,5),col,grav:520});
-}
-function sparkle(x,y,col,n){
- for(let i=0;i<n;i++){ const a=rand(0,Math.PI*2),sp=rand(40,170);
-  parts.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rand(0.4,0.8),max:0.8,size:rand(1.5,3.5),col,grav:0}); }
-}
-function addFloat(x,y,text,col,size){ floats.push({x,y,text,col:col||"#fff",life:1,size:size||15}); }
+/* ===== run state ===== */
+let mode="menu";  // menu | playing | dead
+let drill={x:W/2, vx:0, y:0, tilt:0};
+let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedRevive=false;
+let holding=false, shake=0, invuln=0;
+const parts=[], trail=[], pops=[];
+let beatBest=false, lastBiome=0;
 
-/* =================== Combo =================== */
-let combo=0,comboAt=0;
-const comboMult=()=>1+Math.min(combo,8)*0.25;
-function bumpCombo(){
- const t=nowS(); combo = t-comboAt<5 ? combo+1 : 0; comboAt=t;
- const el=document.getElementById("combo");
- if(combo>=2){ el.textContent="COMBO ×"+comboMult().toFixed(2).replace(/\.?0+$/,"");
-  el.classList.add("show"); el.style.transform="translateX(-50%) scale("+(1+Math.min(combo,8)*0.06)+")"; }
+function startRun(){
+ document.getElementById("start").classList.add("hide");
+ resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
+ drill={x:W/2, vx:0, y:0, tilt:0};
+ speed=BAL.baseSpeed; depthM=0; runGems=0; combo=0; comboT=0;
+ shields=BAL.shieldFromLvl(S.shieldLvl); usedRevive=false; invuln=1.2; shake=0;
+ beatBest=false; lastBiome=0;
+ parts.length=trail.length=pops.length=0;
+ mode="playing"; holding=false;
+ S.runs++; save();
 }
-
-/* =================== Game actions =================== */
-let held=null, modalOpen=false;
-// Level mode: digging only happens inside a timed level (or a raid).
-// levelTimeLeft only ticks while actually playing — popups and ads pause it.
-// levelBoxes = mystery boxes picked up this level; secured ONLY on a win.
-let inLevel=false, levelPot=0, levelBoxes=[], levelMaxDepth=0, levelTimeLeft=0;
-function depthOf(row){ return Math.max(0,row+1); }
-
-function collect(tile,c,r){
- const cx=c*TS+TS/2, cy=r*TS+TS/2;
- const d=depthOf(r), def=TDEF[tile.t];
- if(tile.t===T.MONSTER){
-   const v=80*BAL.oreScale(d)*incomeMult();
-   if(raid){ raid.loot+=v; } else {
-     levelPot+=v;
-     if(Math.random()<0.25&&S.bombs<BAL.bombMax){ S.bombs++; toast("The monster dropped a bomb!"); }
-   }
-   addFloat(cx,cy,"SLAIN! +"+fmt(v),"#ff4d6d",18);
-   sparkle(cx,cy,"#ff4d6d",22); shake=4;
-   if(navigator.vibrate) navigator.vibrate(25);
-   return;
- }
- if(raid){
-   if(tile.t===T.RELIC){
-     raid.relicStolen=true; S.relics++;
-     addFloat(cx,cy,"RELIC! ✦","#cf9bff",24);
-     sparkle(cx,cy,"#cf9bff",34); shake=6;
-     banner("RELIC STOLEN! ✦","+1 relic — "+raid.name+" loses it forever");
-     return;
-   }
-   if(tile.t===T.VAULT){
-     const take=raid.stock*rand(0.08,0.13)*(raid.revenge?1.5:1);
-     raid.loot+=take; raid.vaults--;
-     addFloat(cx,cy,"VAULT! +"+fmt(take),"#ffd24a",22);
-     sparkle(cx,cy,"#ffd24a",30); shake=5;
-     if(navigator.vibrate) navigator.vibrate(30);
-     if(raid.vaults<=0) setTimeout(()=>{ if(raid) endRaid(); },650);
-     return;
-   }
-   if(tile.t===T.CHEST){
-     const take=raid.stock*0.03;
-     raid.loot+=take; addFloat(cx,cy,"+"+fmt(take),"#ffd24a",16); sparkle(cx,cy,"#ffd24a",16);
-     return;
-   }
-   if(tile.t===T.ENERGY){ sparkle(cx,cy,"#19e3b1",10); return; }
-   if(def.value){
-     bumpCombo();
-     const v=def.value*BAL.oreScale(d)*incomeMult()*comboMult();
-     raid.loot+=v;
-     addFloat(cx,cy,"+"+fmt(v),def.gem,combo>=4?20:15);
-     sparkle(cx,cy,def.gem,14);
-   }
-   return;
- }
- if(tile.t===T.CHEST){ chestPickup(d); sparkle(cx,cy,"#ffd24a",26); return; }
- if(tile.t===T.ENERGY){ S.energy=clamp(S.energy+30,0,maxEnergy());
-   addFloat(cx,cy,"+30","#19e3b1",15); sparkle(cx,cy,"#19e3b1",14); return; }
- if(def.value){
-   bumpCombo();
-   const v=def.value*BAL.oreScale(d)*incomeMult()*comboMult()*(frenzyOn()?2:1);
-   levelPot+=v;
-   addFloat(cx,cy,"+"+fmt(v),def.gem,combo>=4?20:15);
-   sparkle(cx,cy,def.gem,18);
-   if(navigator.vibrate) navigator.vibrate(12);
- }
-}
-
-function tryDig(dt){
- if(drill.anim||modalOpen) return;
- if(!inLevel&&!raid) return;   // digging only happens during a level or a raid
- const below=getTile(drill.col,drill.row+1);
- if(below&&below.t===T.EMPTY&&!held){ startMove(0,1,0.16); return; }
- if(!held) return;
- const [dx,dy]=held; drill.dir=held;
- if(dy===-1&&!wingsOn()) return;   // climbing requires the wings powerup
- const nc=drill.col+dx, nr=drill.row+dy;
- if(nc<0||nc>=COLS||nr<-1) return;
- const tile=getTile(nc,nr);
- if(!tile) return;
- // deliberate pacing: sideways slower than down
- if(tile.t===T.EMPTY){ startMove(dx,dy,dy===0?0.28:0.2); return; }
- if(dy===-1) return; // can't dig upward even with wings
- const def=TDEF[tile.t];
- if(!isFinite(tile.hp)){ // bedrock: raid boundary
-   if(Math.random()<dt*8) sparkle(nc*TS+TS/2,nr*TS+TS/2,"#8d93b8",2);
-   return;
- }
- if(!raid&&S.energy<def.cost){ held=null; openRefill(); return; }
- if(tile.t===T.MONSTER&&!raid){
-   // it bites back: fighting drains energy fast
-   S.energy=Math.max(0,S.energy-BAL.monsterDrain*dt);
-   if(Math.random()<dt*6) spawnParts(nc*TS+TS/2,nr*TS+TS/2,"#ff4d6d",2,130);
-   if(S.energy<=0){ held=null; openRefill(); return; }
- }
- tile.hp-=digPower()*dt*(frenzyOn()?2:1);
- drill.bitSpin+=dt*30;
- if(Math.random()<dt*22){
-   const host=def.gem?(tile.t===T.GOLD?TDEF[T.CLAY]:TDEF[T.STONE]):def;
-   spawnParts(nc*TS+TS/2,nr*TS+TS/2,host.bot||"#777",2,90);
- }
- if(def.hp>=100) shake=Math.min(shake+dt*14,4);
- if(tile.hp<=0){
-   if(!raid) S.energy-=def.cost;
-   collect(tile,nc,nr);
-   tile.t=T.EMPTY;
-   spawnParts(nc*TS+TS/2,nr*TS+TS/2,"#999",6,120);
-   startMove(dx,dy,dx!==0?0.26:0.18);
-   if(navigator.vibrate) navigator.vibrate(8);
- }
-}
-function startMove(dx,dy,t){
- drill.anim={fx:drill.px,fy:drill.py,tx:(drill.col+dx)*TS,ty:(drill.row+dy)*TS,t:0,dur:t};
- drill.col+=dx; drill.row+=dy;
- const d=depthOf(drill.row);
- if(!raid){
-   if(inLevel) levelMaxDepth=Math.max(levelMaxDepth,d);
-   if(d>S.bestDepth){ S.bestDepth=d; checkMilestones(d); }
- }
-}
-
-/* =================== Level mode =================== */
-window.startLevel=function(){
- if(inLevel||raid) return;
- closeModal();
- rows={};                                  // fresh shaft every attempt
- drill.col=4; drill.row=-1; drill.anim=null;
- drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42;
- S.energy=maxEnergy(); S.frenzyUntil=0; S.wingsUntil=0;
- levelPot=0; levelBoxes=[]; levelMaxDepth=0; combo=0;
- inLevel=true; levelTimeLeft=BAL.levelTime;
- banner("LEVEL "+S.level,
-   "Collect "+fmt(BAL.levelCash(S.level))+" • reach "+BAL.levelDepth(S.level)+"m • "+BAL.levelTime+"s");
+function die(){
+ if(invuln>0) return;
+ if(shields>0){ shields--; invuln=1.0; shake=12; haptic(30); sparkBurst(drill.x,DRILLY,"#7ad7ff",24); announce("SHIELD!","#7ad7ff"); return; }
+ mode="dead"; shake=20; haptic(60);
+ for(let i=0;i<40;i++) parts.push({x:drill.x,y:DRILLY,vx:rand(-260,260),vy:rand(-320,120),life:rand(.5,1.1),max:1.1,size:rand(2,6),col:Math.random()<.5?"#ffb14a":"#888"});
+ if(depthM>S.best){ S.best=Math.floor(depthM); }
  save();
-};
-function endLevel(win){
- if(!inLevel) return;
- inLevel=false; held=null;
- const pot=levelPot, boxes=levelBoxes.slice(), lvl=S.level;
- window._lvClaim=m=>{
-  let gain=pot*m;
-  if(win&&S.battlePass) gain*=BAL.passWinBonus;
-  S.cash+=gain;
-  if(win){
-   S.level++; S.maxLevel=Math.max(S.maxLevel,S.level);
-   S.boxes=S.boxes.concat(boxes);   // mystery boxes secured only on a WIN
-   if(navigator.vibrate) navigator.vibrate(30);
-  }
-  toast("+"+fmt(gain)+" banked");
-  save(); closeModal();
-  // back to the main screen: fresh surface view with the START button
-  rows={};
-  drill.col=4; drill.row=-1; drill.anim=null;
-  drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42; held=null;
- };
- window._lvClaimAd=m=>watchAd(()=>window._lvClaim(m));
- if(win){
-  openModal(`
-   <div class="m-title">LEVEL ${lvl} CLEAR!</div>
-   <div class="m-sub">${BAL.levelDepth(lvl)}m reached • goal collected with ${Math.max(0,Math.ceil(levelTimeLeft))}s to spare</div>
-   <div class="reward-big">+${fmt(pot)}</div>
-   ${boxes.length?`<div class="u-sub" style="text-align:center;color:#ffd24a;font-weight:800">${boxes.length} mystery box${boxes.length>1?"es":""} secured — open from the main screen</div>`:""}
-   <button class="big-cta" onclick="_lvClaimAd(${BAL.winAdMult})">Claim ${BAL.winAdMult*100}% — watch ad</button>
-   <button class="big-cta alt" onclick="_lvClaim(1)">Claim 100%</button>`,true);
- } else {
-  openModal(`
-   <div class="m-title">TIME'S UP</div>
-   <div class="m-sub">Level ${lvl}: ${fmt(pot)} of ${fmt(BAL.levelCash(lvl))} • ${levelMaxDepth}m of ${BAL.levelDepth(lvl)}m</div>
-   <div class="reward-big" style="filter:grayscale(.4)">${fmt(pot)}</div>
-   ${boxes.length?`<div class="u-sub" style="text-align:center;color:#ff5e62;font-weight:800">${boxes.length} mystery box${boxes.length>1?"es":""} forfeited</div>`:""}
-   <div class="u-sub" style="text-align:center;margin-bottom:8px">Failed runs only keep part of the haul. Upgrade, then try again!</div>
-   <button class="big-cta" onclick="_lvClaimAd(${BAL.loseKeepAd})">Keep ${BAL.loseKeepAd*100}% — watch ad</button>
-   <button class="big-cta alt" onclick="_lvClaim(${BAL.loseKeep})">Keep ${BAL.loseKeep*100}%</button>`,true);
+ setTimeout(showDeath,650);
+}
+function revive(){
+ const sl=sliceAt(drill.y); drill.x=sl.cx; drill.vx=0; invuln=2.2; usedRevive=true;
+ // clear spikes just ahead so revive isn't instant death
+ for(let i=0;i<slices.length;i++){ if(slices[i]&&Math.abs(i*BAL.sliceH-drill.y)<H*0.7){ slices[i].li=0; slices[i].ri=0; } }
+ mode="playing"; closeModal();
+}
+
+/* ===== input ===== */
+cv.addEventListener("pointerdown",e=>{ if(mode==="playing"){ holding=true; } });
+window.addEventListener("pointerup",()=>{ holding=false; });
+window.addEventListener("pointercancel",()=>{ holding=false; });
+document.getElementById("taptodive").addEventListener("click",startRun);
+window.addEventListener("keydown",e=>{ if(e.code==="Space"){ if(mode==="menu")startRun(); else holding=true; e.preventDefault(); } });
+window.addEventListener("keyup",e=>{ if(e.code==="Space") holding=false; });
+
+/* ===== effects ===== */
+function haptic(ms){ if(S.haptics&&navigator.vibrate) navigator.vibrate(ms); }
+function sparkBurst(x,y,col,n){ for(let i=0;i<n;i++){ const a=rand(0,7),s=rand(40,200);
+  parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(.3,.7),max:.7,size:rand(1.5,3.5),col}); } }
+function pop(x,y,txt,col){ pops.push({x,y,txt,col,life:.9}); }
+function announce(txt,col){ const a=document.getElementById("announce"); a.textContent=txt; a.style.color=col||"#fff";
+  a.classList.remove("show"); void a.offsetWidth; a.classList.add("show"); }
+
+/* ===== update ===== */
+function update(dt){
+ if(mode!=="playing"){ shake=Math.max(0,shake-dt*30); return; }
+ // speed ramps with depth
+ speed=Math.min(BAL.speedCap, BAL.baseSpeed+depthM*BAL.speedGain*10);
+ drill.y+=speed*dt;
+ depthM=drill.y/BAL.pxPerM;
+ // lateral: hold=right, release=left
+ drill.vx+=(holding?BAL.accel:-BAL.accel)*dt;
+ drill.vx=clamp(drill.vx,-BAL.vmax,BAL.vmax);
+ drill.x+=drill.vx*dt;
+ drill.tilt=lerp(drill.tilt, drill.vx/BAL.vmax*0.5, 0.2);
+ if(invuln>0) invuln-=dt;
+ // trail
+ trail.push({x:drill.x,y:DRILLY,life:.5}); if(trail.length>22) trail.shift();
+ // collision with current slice
+ const sl=sliceAt(drill.y);
+ const leftPass=sl.cx-sl.half+sl.li+BAL.drillR;
+ const rightPass=sl.cx+sl.half-sl.ri-BAL.drillR;
+ if(drill.x<leftPass){ drill.x=leftPass; die(); }
+ else if(drill.x>rightPass){ drill.x=rightPass; die(); }
+ else if(invuln<=0){
+  // near-miss reward
+  const clr=Math.min(drill.x-leftPass, rightPass-drill.x);
+  if(clr<BAL.nearMiss){ if(Math.random()<dt*30){ combo++; comboT=nowS();
+    sparkBurst(drill.x,DRILLY,"#ffd54a",4); if(combo%5===0) announce("NEAR MISS x"+combo+"!","#ffd54a"); } }
  }
- save();
-}
-window.openLobby=function(){
- const n=S.level;
- openModal(closeBtn+`
-  <div class="m-title">Level ${n}</div>
-  <div class="m-sub">${BAL.levelTime} seconds on the clock — harder every level</div>
-  ${uRow(IC.coin(),"rgba(255,210,74,.13)","Collect "+fmt(BAL.levelCash(n)),"Ores, monsters and chests fill the pot","")}
-  ${uRow(IC.depth(),"rgba(122,215,255,.13)","Reach "+BAL.levelDepth(n)+"m","Rock gets tougher the deeper you go","")}
-  ${uRow(IC.coin("#9fd8ff"),"rgba(58,139,255,.13)","Bank: "+fmt(S.cash),"Spend it on upgrades between levels","")}
-  <button class="big-cta" onclick="startLevel()">START LEVEL ${n}</button>
-  <button class="big-cta alt" onclick="openUpgrades()">Upgrades</button>
-  <button class="big-cta alt" onclick="openShop()">Shop</button>`);
-};
-
-/* =================== Milestones / banner =================== */
-const MILES=[25,50,100,150,200,300,400,500,700,1000];
-function checkMilestones(d){
- for(const m of MILES){ if(d>=m&&S.milestone<m){ S.milestone=m;
-   const g=Math.max(2,Math.round(2+m/60));
-   S.gems+=g; banner(m+"m REACHED!", "+"+g+" gems • richer ores below"); save(); break; } }
-}
-function banner(t,s){
- const b=document.getElementById("banner");
- b.innerHTML=t+'<div class="sub">'+s+"</div>";
- b.classList.add("show"); shake=5;
- clearTimeout(b._h); b._h=setTimeout(()=>b.classList.remove("show"),2600);
-}
-function toast(msg){
- const t=document.getElementById("toast"); t.textContent=msg; t.style.display="block";
- clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",2000);
-}
-
-/* =================== Simulated rewarded ad =================== */
-let adBusy=false;
-function watchAd(onReward){
- if(S.battlePass){ onReward(); save(); return; }   // Battle Pass: no ads, instant rewards
- if(adBusy) return; adBusy=true; held=null;
- const ov=document.getElementById("ad-overlay");
- document.getElementById("ad-ring").innerHTML=IC.play("#ff9d3f");
- ov.style.display="flex"; let left=3;
- document.getElementById("ad-secs").textContent=left;
- const iv=setInterval(()=>{ left--;
-  if(left<=0){ clearInterval(iv); ov.style.display="none"; adBusy=false; onReward(); save(); }
-  else document.getElementById("ad-secs").textContent=left; },1000);
-}
-
-/* =================== Modals =================== */
-const modal=document.getElementById("modal"), card=document.getElementById("modal-card");
-let modalLocked=false;
-function openModal(html,locked){ card.innerHTML=html; modal.classList.add("open"); modalOpen=true; held=null; modalLocked=!!locked; }
-function closeModal(){ modal.classList.remove("open"); modalOpen=false; modalLocked=false; }
-modal.addEventListener("pointerdown",e=>{ if(e.target===modal&&!modalLocked) closeModal(); });
-const closeBtn='<button class="m-close" onclick="closeModal()">✕</button>';
-
-function uRow(icon,iconBg,name,sub,btnHtml){
- return `<div class="u-row"><div class="u-icon" style="background:${iconBg}">${icon}</div>
- <div class="u-info"><div class="u-name">${name}</div><div class="u-sub">${sub}</div></div>${btnHtml}</div>`;
-}
-function costBtn(cost,fn,extra){
- const ok=S.cash>=cost;
- return `<button class="u-btn" ${ok?"":"disabled"} onclick="${fn}">${IC.coin()}${fmt(cost)}</button>`+(extra||"");
-}
-function skinRow(k){
- const owned=S.skins.includes(k.id), active=S.skin===k.id;
- let btn;
- if(active) btn=`<button class="u-btn" disabled>Equipped</button>`;
- else if(owned) btn=`<button class="u-btn" onclick="equipSkin('${k.id}')">Equip</button>`;
- else if(k.relicCost) btn=`<button class="u-btn" style="background:linear-gradient(135deg,#7b2ff7,#ff2d78)" ${S.relics>=k.relicCost?"":"disabled"} onclick="buySkinRelic('${k.id}')">${IC.relic("#fff")}${k.relicCost}</button>`;
- else btn=`<button class="u-btn gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
- const preview=`<img src="${skinThumb(k)}" style="width:42px;height:42px" alt="${k.name}">`;
- return uRow(preview,k.relicCost?"rgba(123,47,247,.16)":"rgba(255,255,255,.06)",k.name,
-   active?"Equipped":owned?"Owned — tap to equip"
-   :k.relicCost?"ELITE — forged with relics, animated aura":"Unique hull design + colors",btn);
-}
-
-window.openUpgrades=function(){
- const relicsGain=Math.floor(S.maxLevel/10);
- openModal(closeBtn+`
-  <div class="m-title">Upgrades</div><div class="m-sub">Dig deeper. Earn faster.</div>
-  ${uRow(IC.drill(),"rgba(255,177,74,.15)","Drill Power &nbsp;Lv "+S.up.power,
-    fmt(digPower())+" dmg/sec → "+fmt(BAL.powerDmg(S.up.power+1))+" next",
-    costBtn(BAL.powerCost(S.up.power),"buyUp('power')"))}
-  ${uRow(IC.tank(),"rgba(25,227,177,.13)","Fuel Tank &nbsp;Lv "+S.up.tank,
-    "Max "+maxEnergy()+" → "+BAL.tankMax(S.up.tank+1)+" next",
-    costBtn(BAL.tankCost(S.up.tank),"buyUp('tank')"))}
-  ${uRow(IC.regen(),"rgba(122,215,255,.13)","Fuel Regen &nbsp;Lv "+S.up.regen,
-    BAL.regenRate(S.up.regen).toFixed(1)+"/sec → "+BAL.regenRate(S.up.regen+1).toFixed(1)+" next",
-    costBtn(BAL.regenCost(S.up.regen),"buyUp('regen')"))}
-  <div class="sec-label">NEW SHAFT (PRESTIGE)</div>
-  <div class="u-sub" style="margin:0 4px 8px">Beat level 10 to prestige: +1 relic per 10 levels. Relics give +${BAL.relicBonus*100}% income each, unlock ELITE drills — but every relic makes ALL rock ${BAL.relicWorldHp*100}% tougher, and raids can steal them. Levels and upgrades reset; gems &amp; skins stay.</div>
-  <button class="big-cta purple" ${relicsGain?"":"disabled"} onclick="doPrestige()">
-    ${relicsGain?"Open New Shaft: +"+relicsGain+" relic"+(relicsGain>1?"s":""):"Locked — best level: "+S.maxLevel+" / 10"}
-    <span class="s">Current: ${S.relics} relics (+${Math.round(S.relics*BAL.relicBonus*100)}%)</span>
-  </button>`);
-};
-window.buyUp=function(k){
- const cost=BAL[k+"Cost"](S.up[k]);
- if(S.cash<cost) return;
- S.cash-=cost; S.up[k]++;
- save(); openUpgrades();
-};
-window.doPrestige=function(){
- const g=Math.floor(S.maxLevel/10); if(!g) return;
- if(!confirm("Open a new shaft? Levels, cash and upgrades reset. You gain +"+g+" relic(s) — more income, ELITE drills... and much tougher rock.")) return;
- S.relics+=g; S.prestiges++; S.cash=0; S.up={power:1,tank:1,regen:1,robo:0};
- S.energy=100; S.level=1; S.maxLevel=1; S.milestone=0; S.boostUntil=0; S.frenzyUntil=0;
- inLevel=false; levelPot=0;
- rows={};
- drill.col=4; drill.row=-1; drill.px=drill.col*TS; drill.py=drill.row*TS; drill.anim=null;
- banner("NEW SHAFT","+"+g+" relics • +"+Math.round(S.relics*BAL.relicBonus*100)+"% income • harder rock"); save(); closeModal();
-};
-
-let shopTab="gear";
-function gearTab(){
- return `
-  <div class="sec-label">DRILL SUPPLIES</div>
-  ${uRow(IC.bolt(),"rgba(25,227,177,.13)","Full Fuel Refill","Back to "+maxEnergy()+" instantly",
-    `<button class="u-btn gems" ${S.gems>=30?"":"disabled"} onclick="gemRefillShop()">${IC.gem("#fff")}30</button>`)}
-  ${uRow(IC.bolt("#ff9d3f"),"rgba(255,157,63,.13)","Bomb ("+S.bombs+"/"+BAL.bombMax+")","Blasts a 3×3 area instantly — works in raids too",
-    `<button class="u-btn gems" ${S.gems>=BAL.bombCost&&S.bombs<BAL.bombMax?"":"disabled"} onclick="buyBombShop()">${IC.gem("#fff")}${BAL.bombCost}</button>`)}
-  <div class="sec-label">RAID DEFENSE</div>
-  ${uRow(IC.shield(),"rgba(122,215,255,.13)",shieldOn()?"Raid Shield (active)":"Raid Shield",shieldSub(),shieldBtns("shop"))}
-  ${uRow(IC.chest("#cf9bff"),"rgba(207,155,255,.13)","Decoy Vault ("+S.decoys+"/"+BAL.decoyMax+")","Halves the loss from one incoming raid",
-    `<button class="u-btn gems" ${S.gems>=BAL.decoyCost&&S.decoys<BAL.decoyMax?"":"disabled"} onclick="buyDecoyShop()">${IC.gem("#fff")}${BAL.decoyCost}</button>`)}`;
-}
-function gemsTab(){
- const freeReady=nowS()>=S.freeGemsAt;
- return `
-  <div class="sec-label">BATTLE PASS — MONTHLY</div>
-  ${uRow(IC.trophy(),"rgba(255,210,74,.13)","Battle Pass",
-    S.battlePass?"Active — rewards are instant, no ads"
-    :"No ads (rewards instant) • +25% level wins • 4th raid ticket slot • +"+BAL.passDailyGems+" gems daily",
-    `<button class="u-btn iap" ${S.battlePass?"disabled":""} onclick="iapPass()">${S.battlePass?"Active":"$7.99/mo"}</button>`)}
-  <div class="sec-label">FREE — WATCH AN AD</div>
-  ${uRow(IC.gem(),"rgba(255,95,158,.13)","Free Gems",
-    freeReady?"+"+BAL.freeGems+" gems":"Next in "+dur(S.freeGemsAt-nowS()),
-    `<button class="u-btn ad" ${freeReady?"":"disabled"} onclick="freeGems()">${IC.play()}Watch</button>`)}
-  ${uRow(IC.coin(),"rgba(255,210,74,.13)","Income Boost","×2 all income for 4h"+(boostOn()?" (active)":""),
-    `<button class="u-btn ad" ${boostOn()?"disabled":""} onclick="adBoost()">${IC.play()}Watch</button>`)}
-  <div class="sec-label">GEM PACKS (IAP)</div>
-  ${uRow(IC.gem(),"rgba(255,95,158,.13)","Fistful of Gems","120 gems",`<button class="u-btn iap" onclick="iapGems(120)">$1.99</button>`)}
-  ${uRow(IC.gem("#ff8fbe"),"rgba(255,95,158,.13)","Sack of Gems","700 gems • 45% more value",`<button class="u-btn iap" onclick="iapGems(700)">$7.99</button>`)}
-  ${uRow(IC.gem("#ffc2da"),"rgba(255,95,158,.13)","Gem Vault","4000 gems • best value",`<button class="u-btn iap" onclick="iapGems(4000)">$29.99</button>`)}
-  <div class="sec-label">PERMANENT UPGRADES (IAP)</div>
-  ${uRow(IC.coin("#9fd8ff"),"rgba(58,139,255,.13)","Permanent ×2 Income","Forever. Stacks with boosts",
-    `<button class="u-btn iap" ${S.perm2x?"disabled":""} onclick="iapPerm()">${S.perm2x?"Owned":"$9.99"}</button>`)}`;
-}
-window.openShop=function(tab){
- if(typeof tab==="string") shopTab=tab;
- const tb=(id,l)=>`<button class="tab ${shopTab===id?"on":""}" onclick="openShop('${id}')">${l}</button>`;
- const starterLeft=S.firstLaunch/1000+BAL.starterWindow-nowS();
- const starter=!S.starterBought&&starterLeft>0?`<div class="starter">
-   <div class="t">STARTER PACK — LIMITED OFFER</div>
-   <div class="u-sub" style="color:#cfd2ff">500 gems + 24h of ×2 income</div>
-   <div class="timer">Offer ends in ${dur(starterLeft)}</div>
-   <button class="u-btn iap" style="margin:0 auto" onclick="buyStarter()">$3.99</button></div>`:"";
- const body= shopTab==="skins"?
-            `<div class="sec-label">GEM SKINS — UNIQUE DESIGNS</div>`+SKINS.map(skinRow).join("")
-            +`<div class="sec-label">ELITE RELIC DRILLS — YOU HAVE ✦ ${S.relics}</div>`
-            +`<div class="u-sub" style="margin:0 4px 8px">Animated, glowing, one-of-a-kind. Only relics can forge these.</div>`
-            +ELITE.map(skinRow).join("")
-           : shopTab==="gems"?gemsTab()
-           : gearTab();
- openModal(closeBtn+`
-  <div class="m-title">Shop</div>
-  <div class="m-sub">Purchases are simulated in this prototype (StoreKit 2 on iOS).</div>
-  ${starter}
-  <div class="tabs">${tb("gear","GEAR")}${tb("skins","SKINS")}${tb("gems","GEMS")}</div>`+body);
-};
-window.gemRefillShop=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Fuel refilled!"); save(); openShop(); };
-window.freeGems=function(){ if(nowS()<S.freeGemsAt) return;
- watchAd(()=>{ S.gems+=BAL.freeGems; S.freeGemsAt=nowS()+BAL.freeGemsCd; toast("+"+BAL.freeGems+" gems!"); openShop(); }); };
-window.adBoost=function(){ watchAd(()=>{ S.boostUntil=Math.max(nowS(),S.boostUntil)+BAL.boostDur; toast("×2 income for 4h!"); openShop(); }); };
-window.gemRefill=function(){ if(S.gems<30) return; S.gems-=30; S.energy=maxEnergy(); toast("Fuel refilled!"); save(); closeModal(); };
-window.iapGems=function(n){ S.gems+=n; toast("+"+n+" gems (simulated purchase)"); save(); openShop(); };
-window.iapPerm=function(){ S.perm2x=true; toast("Permanent ×2 active!"); save(); openShop(); };
-window.iapPass=function(){ S.battlePass=true; toast("Battle Pass active! (simulated subscription)"); save(); openShop("gems"); };
-window.buyStarter=function(){ S.starterBought=true; S.gems+=500;
- S.boostUntil=Math.max(nowS(),S.boostUntil)+24*3600; toast("Starter Pack! +500 gems, 24h ×2"); save(); openShop(); };
-
-function openRefill(){
- openModal(closeBtn+`
-  <div class="m-title">Out of Fuel!</div>
-  <div class="m-sub">Your drill needs fuel to keep digging.</div>
-  <div style="display:flex;justify-content:center;margin:6px 0 2px">
-    <div style="width:64px;height:64px">${IC.bolt("#ff5252")}</div></div>
-  <button class="big-cta" onclick="watchAd(()=>{S.energy=maxEnergy();toast('Fuel refilled!');closeModal();})">
-    Full refill — watch ad <span class="s">free, instant</span></button>
-  <button class="big-cta alt" ${S.gems>=30?"":"disabled"} onclick="gemRefill()">Refill for 30 gems</button>
-  <button class="big-cta alt" onclick="closeModal()">Wait — regenerates ${BAL.regenRate(S.up.regen).toFixed(1)}/sec</button>`);
-}
-
-// Big animated reward callout — no popup, no interruption.
-function announce(text,color){
- const a=document.getElementById("announce");
- a.textContent=text; a.style.color=color||"#fff";
- a.classList.remove("show"); void a.offsetWidth; a.classList.add("show");
-}
-// Mystery boxes are picked up silently: boosts apply instantly with a
-// callout; cash/gems become sealed boxes, openable from the main screen —
-// but only if the level is WON.
-function chestPickup(d){
- const roll=Math.random();
- if(roll<0.45){
-   levelBoxes.push({kind:"cash", amt:Math.round(15*BAL.oreScale(d)*incomeMult()*12)});
-   announce("MYSTERY BOX +1","#ffd24a");
- } else if(roll<0.55){
-   levelBoxes.push({kind:"gems", amt:3+Math.floor(Math.random()*6)});
-   announce("MYSTERY BOX +1","#ffd24a");
- } else if(roll<0.7){
-   S.energy=maxEnergy(); announce("FULL FUEL!","#19e3b1");
- } else if(roll<0.85){
-   S.wingsUntil=nowS()+BAL.wingsDur; announce("WINGS!","#7ad7ff");
- } else {
-   S.frenzyUntil=nowS()+BAL.frenzyDur; announce("×2 FRENZY!","#ffd54a");
- }
- if(navigator.vibrate) navigator.vibrate(20);
-}
-// Open secured boxes from the main screen, one by one.
-window.openBoxes=function(){
- if(inLevel||raid) return;
- const box=S.boxes[0]; if(!box) return;
- window._boxClaim=m=>{
-  if(box.kind==="cash") S.cash+=box.amt*m; else S.gems+=Math.round(box.amt*m);
-  S.boxes.shift(); save();
-  S.boxes.length?openBoxes():closeModal();
- };
- window._boxClaimAd=()=>watchAd(()=>window._boxClaim(2));
- openModal(`
-  <div class="m-title">Mystery Box</div>
-  <div class="m-sub">${S.boxes.length} sealed box${S.boxes.length>1?"es":""} from won levels</div>
-  <div style="display:flex;justify-content:center"><div style="width:62px;height:62px">${IC.chest()}</div></div>
-  <div class="reward-big">${box.kind==="cash"?"+"+fmt(box.amt)+" cash":"+"+box.amt+" gems"}</div>
-  <button class="big-cta" onclick="_boxClaimAd()">Double it — watch ad</button>
-  <button class="big-cta alt" onclick="_boxClaim(1)">Claim</button>`);
-};
-
-/* =================== Daily & away events (NO passive earnings) =================== */
-(function(){
- const away=(Date.now()-S.lastSeen)/1000;
- if(away>3600&&Math.random()<0.5) setTimeout(incomingRaid,6000);
- const today=new Date().toDateString();
- if(S.daily.last!==today){
-  const yest=new Date(Date.now()-864e5).toDateString();
-  S.daily.streak=S.daily.last===yest?S.daily.streak+1:1;
-  S.daily.last=today;
-  let g=Math.min(2*S.daily.streak,14);
-  if(S.battlePass) g+=BAL.passDailyGems;
-  S.gems+=g;
-  setTimeout(()=>banner("DAY "+S.daily.streak+" STREAK","+"+g+" gems • come back tomorrow for more"),1800);
-  save();
- }
-})();
-
-/* =================== Social: raids, leaderboard, friends =================== */
-const BOTNAMES=["Borya","NovaDig","MoleKing","CrystalCat","DeepDan","RustyPick","GoldGret","ShaftLord",
- "DrillBit","MagmaMia","EchoMiner","TunnelRat","OreSlayer","Gemini","DustDevil","Karat","Seismo","LodeStar"];
-let socTab="raid", currentTarget=null;
-const ago=ms=>{ const m=Math.floor((Date.now()-ms)/60000);
- return m<1?"just now":m<60?m+"m ago":Math.floor(m/60)+"h ago"; };
-function feedPush(e){ e.at=Date.now(); S.feed.unshift(e); if(S.feed.length>12) S.feed.length=12; }
-
-function rollTarget(friend){
- let name,seed;
- if(friend){ name=friend.name; seed=friend.seed; }
- else { name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
-        seed=(hashStr(name)+Math.floor(Date.now()/36e5))>>>0; }
- const rng=mulberry32(seed);
- const stock=Math.max(400, S.cash*(0.5+rng()*1.4)+rng()*600);
- const relics=rng()<0.55?1:0;
- return {name, seed, stock, relics, shielded:!friend&&rng()<0.22};
-}
-
-function buildRaidWorld(target){
- rows={}; RNG=mulberry32(target.seed);
- for(let r=0;r<RAID_ROWS;r++) getRow(r);
- const spots=[];
- while(spots.length<3){
-  const c=Math.floor(RNG()*COLS), rr=4+Math.floor(RNG()*(RAID_ROWS-6));
-  if(!spots.some(s=>s[0]===c&&s[1]===rr)) spots.push([c,rr]);
- }
- for(const [c,rr] of spots){ const tl=rows[rr][c];
-  tl.t=T.VAULT; tl.hp=tl.maxHp=TDEF[T.VAULT].hp*(1+rr/100); }
- // hidden relic shrine: disguised as plain stone, somewhere off the vault path
- if(target.relics>0&&RNG()<0.8){
-  for(let tries=0;tries<20;tries++){
-   const c=Math.floor(RNG()*COLS), rr=8+Math.floor(RNG()*(RAID_ROWS-10));
-   if(rows[rr][c].t!==T.VAULT){
-    const tl=rows[rr][c];
-    tl.t=T.RELIC; tl.hp=tl.maxHp=TDEF[T.RELIC].hp*(1+rr/100);
-    break;
-   }
+ // gems (with magnet)
+ const magR=40+S.magnetLvl*34;
+ for(let i=Math.floor((drill.y-H)/BAL.sliceH); i<Math.floor((drill.y+H)/BAL.sliceH); i++){
+  const s=slices[i]; if(!s||!s.gem||s.gem.taken) continue;
+  const gy=DRILLY+(i*BAL.sliceH-drill.y);
+  if(S.magnetLvl>0 && Math.abs(gy-DRILLY)<magR && Math.abs(s.gem.x-drill.x)<magR) s.gem.x=lerp(s.gem.x,drill.x,0.25);
+  if(Math.abs(gy-DRILLY)<BAL.drillR+10 && Math.abs(s.gem.x-drill.x)<BAL.drillR+12){
+   s.gem.taken=true; const mult=1+Math.min(combo,10)*0.5; const g=Math.round(1*mult);
+   runGems+=g; pop(drill.x,DRILLY-20,"+"+g,"#ff5f9e"); sparkBurst(s.gem.x,gy,"#ff5f9e",10); haptic(8);
   }
  }
- RNG=Math.random;
-}
-
-function startRaid(target,revenge){
- if(raid) return;
- if(!revenge){
-   if(S.raidTickets<1){ toast("No raid tickets left"); return; }
-   S.raidTickets--;
- }
- closeModal();
- worldBackup={rows, dcol:drill.col, drow:drill.row, camY};
- raid={name:target.name, stock:target.stock, loot:0, vaults:3, relicStolen:false,
-       endAt:nowS()+RAID_TIME, revenge:!!revenge, seed:target.seed};
- buildRaidWorld(target);
- drill.col=4; drill.row=-1; drill.anim=null;
- drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42; held=null;
- combo=0; comboAt=0;
- banner((revenge?"REVENGE RAID: ":"RAIDING ")+target.name.toUpperCase(),
-        "Crack 3 vaults in "+RAID_TIME+"s — digging is free!");
- save();
-}
-
-function endRaid(){
- if(!raid) return;
- const r=raid; raid=null;
- rows=worldBackup.rows; drill.col=worldBackup.dcol; drill.row=worldBackup.drow;
- drill.anim=null; drill.px=drill.col*TS; drill.py=drill.row*TS; camY=worldBackup.camY;
- worldBackup=null; held=null; combo=0;
- S.cash+=r.loot; S.raidsWon++;
- feedPush({type:"out", name:r.name, amt:r.loot});
- window._raidDouble=()=>watchAd(()=>{ S.cash+=r.loot; toast("Loot doubled!"); closeModal(); });
- openModal(`
-  <div class="m-title">${r.vaults<=0?"PERFECT RAID!":"Raid over"}</div>
-  <div class="m-sub">${r.vaults<=0?"All 3 vaults cracked at "+r.name+"'s mine":"You escaped "+r.name+"'s mine with the loot"}</div>
-  <div class="reward-big">+${fmt(r.loot)}</div>
-  ${r.relicStolen?`<div class="u-sub" style="text-align:center;color:#cf9bff;font-weight:800">✦ You stole a RELIC — permanent +${BAL.relicBonus*100}% income</div>`:""}
-  ${r.loot>0?`<button class="big-cta" onclick="_raidDouble()">Double the loot — watch ad</button>`:""}
-  <button class="big-cta alt" onclick="closeModal()">Done</button>`);
- save();
-}
-
-function genRaidSteps(total,relic){
- const parts=2+Math.floor(Math.random()*2);
- const cuts=[]; let rem=total;
- for(let i=0;i<parts;i++){
-  const a=i===parts-1?rem:total*rand(0.2,0.45);
-  cuts.push(Math.min(a,rem)); rem-=cuts[i];
- }
- const steps=[{txt:"Breached your mine",amt:0}];
- cuts.forEach((a,i)=>steps.push({txt:"Cracked vault "+(i+1),amt:a}));
- if(relic) steps.push({txt:"Found your hidden relic shrine",amt:0,relic:true});
- steps.push({txt:"Escaped to the surface",amt:0});
- return steps;
-}
-function incomingRaid(){
- if(raid||S.cash<600) return;
- const name=BOTNAMES[Math.floor(Math.random()*BOTNAMES.length)];
- if(shieldOn()){
-   feedPush({type:"block", name});
-   banner("RAID BLOCKED!", "Your shield held against "+name);
- } else {
-   let steal=S.cash*rand(0.03,0.07), usedDecoy=false, relicLost=false;
-   if(S.decoys>0){ S.decoys--; steal*=0.5; usedDecoy=true; }
-   if(!usedDecoy&&S.relics>0&&Math.random()<0.2){ S.relics--; relicLost=true; }
-   S.cash-=steal;
-   feedPush({type:"in", name, amt:steal, seed:hashStr(name), revenged:false,
-             decoy:usedDecoy, relic:relicLost, steps:genRaidSteps(steal,relicLost)});
-   banner(name.toUpperCase()+" RAIDED YOU!",
-          "−"+fmt(steal)+(relicLost?" • they STOLE A RELIC ✦":usedDecoy?" • decoy halved it":"")+" • revenge in Rivals");
- }
- save();
-}
-
-// 3x3 bomb blast around the drill: collects everything, no energy cost.
-function useBomb(){
- if(modalOpen) return;
- if(!inLevel&&!raid){ toast("Bombs only work during a level or raid"); return; }
- if(S.bombs<1){ toast("No bombs — get them in the Shop"); return; }
- S.bombs--;
- shake=7;
- if(navigator.vibrate) navigator.vibrate(40);
- for(let rr=drill.row-1;rr<=drill.row+1;rr++){
-  for(let cc=drill.col-1;cc<=drill.col+1;cc++){
-   const tile=getTile(cc,rr);
-   if(!tile||tile.t===T.EMPTY||!isFinite(tile.hp)) continue;
-   if(tile.t===T.CHEST&&!raid){
-     chestPickup(depthOf(rr));
-   } else {
-     collect(tile,cc,rr);
-   }
-   tile.t=T.EMPTY;
-   spawnParts(cc*TS+TS/2,rr*TS+TS/2,"#ff9d3f",8,200);
-  }
- }
- sparkle(drill.px+TS/2,drill.py+TS/2,"#ff9d3f",30);
- save();
-}
-setInterval(()=>{ if(!modalOpen&&Math.random()<0.2) incomingRaid(); }, 5*60*1000);
-
-function leaderboard(){
- const dayN=Math.floor(Date.now()/864e5);
- const list=BOTNAMES.slice(0,14).map(n=>{
-   const rng=mulberry32((hashStr(n)*31+dayN)>>>0);
-   const depth=Math.round(Math.max(12,(S.bestDepth||20)*(0.3+rng()*1.9)+rng()*30));
-   return {name:n, depth, relics:Math.floor(depth/300)};
- });
- list.push({name:"You", depth:S.bestDepth, relics:S.relics, me:true});
- list.sort((a,b)=>b.depth-a.depth);
- return list;
-}
-function friendDepth(f){
- const dayN=Math.floor(Date.now()/864e5);
- const rng=mulberry32((f.seed*17+dayN)>>>0);
- return Math.round(Math.max(10,(S.bestDepth||20)*(0.4+rng()*1.4)));
-}
-
-function raidTab(){
- if(!currentTarget) currentTarget=rollTarget();
- const t=currentTarget;
- const canRaid=S.raidTickets>0&&!t.shielded;
- return `
- ${uRow(IC.raid(),"rgba(255,122,92,.13)","Raid Tickets: "+S.raidTickets+"/"+ticketCap(),
-   S.raidTickets>=ticketCap()?"Full — go raid!":"+1 in "+dur(7200-(nowS()-S.ticketAt)),
-   `<button class="u-btn ad" onclick="adTicket()">${IC.play()}+1</button>`)}
- ${uRow(IC.shield(),"rgba(122,215,255,.13)",
-   shieldOn()?"Shield: ACTIVE":"Shield",
-   shieldSub(),
-   shieldBtns("raid"))}
- ${uRow(IC.chest("#cf9bff"),"rgba(207,155,255,.13)","Decoy Vaults: "+S.decoys+"/"+BAL.decoyMax,
-   "Each one halves the loss from one incoming raid",
-   `<button class="u-btn gems" ${S.gems>=BAL.decoyCost&&S.decoys<BAL.decoyMax?"":"disabled"} onclick="buyDecoy()">${IC.gem("#fff")}${BAL.decoyCost}</button>`)}
- <div class="target-card">
-   <div class="ava" style="margin:0 auto 8px;background:hsl(${t.seed%360} 60% 45%)">${t.name[0].toUpperCase()}</div>
-   <div style="font-weight:900;font-size:16px">${t.name}</div>
-   <div class="u-sub" style="margin-top:3px">Stockpile: ~${fmt(t.stock)}${t.shielded?" • SHIELDED":""}</div>
-   ${t.relics>0?`<div class="u-sub" style="color:#cf9bff;margin-top:2px">Rumors of a hidden relic shrine…</div>`:""}
-   <button class="big-cta" style="margin-top:12px" ${canRaid?"":"disabled"} onclick="raidNow()">
-     ${t.shielded?"Target is shielded":S.raidTickets<1?"No tickets — watch an ad":"RAID THIS MINE"}
-     <span class="s">crack 3 vaults in ${RAID_TIME}s • steal up to ~${fmt(t.stock*0.39)}</span></button>
-   <button class="big-cta alt" onclick="scout()">Scout another target</button>
- </div>
- <div class="u-sub" style="text-align:center">Raids hit a snapshot of the rival's mine — they keep playing undisturbed. Raids won: ${S.raidsWon}</div>`;
-}
-function topTab(){
- const medals=["#ffd24a","#c0c8d8","#cd8b4f"];
- return `<div class="u-sub" style="text-align:center;margin-bottom:10px">Ranked by deepest dig — depth can't be bought, only drilled. Resets weekly • top 3 win gem prizes</div>`+
-  leaderboard().map((e,i)=>uRow(
-   i<3?IC.trophy(medals[i]):`<div class="rank">${i+1}</div>`,
-   e.me?"rgba(255,157,63,.2)":"rgba(255,255,255,.05)",
-   e.me?"<span style='color:#ffb14a'>You</span>":e.name,
-   e.depth+"m • "+e.relics+" relics",
-   "")).join("");
-}
-function friendsTab(){
- return `
- <input id="friend-code" placeholder="Enter a friend code (any name works here)" maxlength="14">
- <button class="big-cta alt" style="margin-top:0" onclick="addFriend()">Add friend</button>
- <div class="sec-label">YOUR FRIENDS</div>`+
- (S.friends.length?S.friends.map((f,i)=>uRow(
-   `<div class="ava" style="background:hsl(${f.seed%360} 60% 45%)">${f.name[0].toUpperCase()}</div>`,"transparent",
-   f.name,"Best depth ~"+friendDepth(f)+"m",
-   `<button class="u-btn ad" onclick="raidFriend(${i})">${IC.raid("#fff")}Raid</button>`)).join("")
-  :`<div class="u-sub" style="text-align:center">No friends yet — add one above</div>`)+
- `<div class="u-sub" style="text-align:center;margin-top:8px">In production this is Game Center friends + invite links.</div>`;
-}
-function feedTab(){
- if(!S.feed.length) return `<div class="u-sub" style="text-align:center;padding:20px 0">No activity yet. Raid someone!</div>`;
- return S.feed.map((e,i)=>{
-  if(e.type==="out") return uRow(IC.raid("#2ecc71"),"rgba(46,204,113,.12)",
-    "You raided "+e.name,"+"+fmt(e.amt)+" • "+ago(e.at),"");
-  if(e.type==="block") return uRow(IC.shield(),"rgba(122,215,255,.12)",
-    e.name+" attacked you","Blocked by your shield • "+ago(e.at),"");
-  const btns=`<div style="display:flex;flex-direction:column;gap:6px">
-    ${e.revenged?"":`<button class="u-btn ad" onclick="revengeRaid(${i})">Revenge</button>`}
-    <button class="u-btn" style="background:rgba(255,255,255,.14)" onclick="showReplay(${i})">Replay</button>
-   </div>`;
-  return uRow(IC.raid("#ff5e62"),"rgba(255,94,98,.12)",
-    e.name+" raided you",
-    "−"+fmt(e.amt)+(e.relic?" • RELIC stolen ✦":e.decoy?" • decoy halved it":"")+" • "+ago(e.at),
-    btns);
- }).join("");
-}
-window.showReplay=function(i){
- const e=S.feed[i]; if(!e||e.type!=="in") return;
- const steps=e.steps||genRaidSteps(e.amt,!!e.relic);
- openModal(closeBtn+`
-  <div class="m-title">Raid Replay</div>
-  <div class="m-sub">${e.name} • ${ago(e.at)}</div>
-  <div id="replay-feed"></div>
-  <div class="u-sub" style="text-align:center;margin-top:10px">Total lost: −${fmt(e.amt)}${e.relic?" and 1 relic ✦":""}</div>`);
- let idx=0;
- (function next(){
-  const box=document.getElementById("replay-feed");
-  if(!box||idx>=steps.length) return;   // stops if the modal was closed
-  const st=steps[idx++];
-  const div=document.createElement("div");
-  div.className="u-row";
-  div.innerHTML=`<div class="u-icon" style="background:${st.relic?"rgba(207,155,255,.15)":"rgba(255,94,98,.12)"}">${st.relic?IC.relic():IC.raid("#ff5e62")}</div>
-   <div class="u-info"><div class="u-name">${st.txt}</div></div>
-   ${st.amt?`<div style="color:#ff5e62;font-weight:800">−${fmt(st.amt)}</div>`:""}`;
-  box.appendChild(div);
-  setTimeout(next,650);
- })();
-};
-window.openSocial=function(tab){
- if(typeof tab==="string") socTab=tab;
- const tb=(id,label)=>`<button class="tab ${socTab===id?"on":""}" onclick="openSocial('${id}')">${label}</button>`;
- const body= socTab==="raid"?raidTab() : socTab==="top"?topTab() : socTab==="friends"?friendsTab() : feedTab();
- openModal(closeBtn+`
-  <div class="m-title">Rivals</div>
-  <div class="m-sub">Simulated locally in this prototype — production uses a small backend + Game Center.</div>
-  <div class="tabs">${tb("raid","RAID")}${tb("top","TOP")}${tb("friends","FRIENDS")}${tb("feed","FEED")}</div>`+body);
-};
-window.raidNow=()=>{ if(currentTarget) startRaid(currentTarget,false); };
-window.scout=()=>{ currentTarget=rollTarget(); openSocial("raid"); };
-window.adTicket=()=>watchAd(()=>{ S.raidTickets=Math.min(S.raidTickets+1,5); toast("+1 raid ticket!"); openSocial("raid"); });
-/* Shield: timed protection (12h), then a long recharge.
-   Free activation -> 10h recharge. Gems -> only 2h. Ads cut the
-   recharge 2h per watch, up to 3 times (10h -> 8 -> 6 -> 4 minimum). */
-function shieldSub(){
- if(shieldOn()) return "Active — blocks ALL raids for "+dur(S.shieldUntil-nowS())+" more";
- if(nowS()<S.shieldCdUntil) return "Recharging — ready in "+dur(S.shieldCdUntil-nowS());
- return "Free to activate — protects your mine for "+dur(BAL.shieldDur);
-}
-function shieldBtns(ctx){
- if(shieldOn()) return "";
- if(nowS()>=S.shieldCdUntil)
-  return `<button class="u-btn" onclick="activateShield('${ctx}')">Activate</button>`;
- let html=`<div style="display:flex;flex-direction:column;gap:6px">`;
- if(S.shieldAdCuts<BAL.shieldAdMaxCuts)
-  html+=`<button class="u-btn ad" onclick="adShieldCut('${ctx}')">${IC.play()}−2h</button>`;
- html+=`<button class="u-btn gems" ${S.gems>=BAL.shieldCost?"":"disabled"} onclick="gemShield('${ctx}')">${IC.gem("#fff")}${BAL.shieldCost}</button></div>`;
- return html;
-}
-function reopen(ctx){ ctx==="shop"?openShop():openSocial("raid"); }
-window.activateShield=ctx=>{
- if(shieldOn()||nowS()<S.shieldCdUntil) return;
- S.shieldUntil=nowS()+BAL.shieldDur;
- S.shieldCdUntil=S.shieldUntil+BAL.shieldCdFree;
- S.shieldAdCuts=0; save(); reopen(ctx);
-};
-window.gemShield=ctx=>{
- if(shieldOn()||S.gems<BAL.shieldCost) return;
- S.gems-=BAL.shieldCost;
- S.shieldUntil=nowS()+BAL.shieldDur;
- S.shieldCdUntil=S.shieldUntil+BAL.shieldCdGem;
- S.shieldAdCuts=0; save(); reopen(ctx);
-};
-window.adShieldCut=ctx=>{
- if(shieldOn()||nowS()>=S.shieldCdUntil||S.shieldAdCuts>=BAL.shieldAdMaxCuts) return;
- watchAd(()=>{
-  S.shieldCdUntil-=BAL.shieldAdCut; S.shieldAdCuts++;
-  toast("Shield recharge −2h!"); save(); reopen(ctx);
- });
-};
-function purchaseDecoy(){ if(S.gems<BAL.decoyCost||S.decoys>=BAL.decoyMax) return false; S.gems-=BAL.decoyCost; S.decoys++; save(); return true; }
-function purchaseBomb(){ if(S.gems<BAL.bombCost||S.bombs>=BAL.bombMax) return false; S.gems-=BAL.bombCost; S.bombs++; save(); return true; }
-window.buyDecoy=()=>{ if(purchaseDecoy()) openSocial("raid"); };
-window.buyDecoyShop=()=>{ if(purchaseDecoy()) openShop(); };
-window.buyBombShop=()=>{ if(purchaseBomb()) openShop(); };
-window.buySkin=id=>{
- const k=skinById(id);
- if(!k||k.relicCost||S.skins.includes(id)||S.gems<k.cost) return;
- S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop("skins");
-};
-window.buySkinRelic=id=>{
- const k=ELITE.find(x=>x.id===id);
- if(!k||S.skins.includes(id)||S.relics<k.relicCost) return;
- if(!confirm("Forge the "+k.name+" for "+k.relicCost+" relic(s)? Spent relics reduce your income bonus.")) return;
- S.relics-=k.relicCost; S.skins.push(id); S.skin=id;
- banner("ELITE DRILL FORGED!",k.name+" is yours forever");
- save(); openShop("skins");
-};
-window.equipSkin=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop("skins"); } };
-window.addFriend=()=>{
- const el=document.getElementById("friend-code"), v=(el&&el.value||"").trim();
- if(v.length<2){ toast("Code too short"); return; }
- if(S.friends.some(f=>f.name.toLowerCase()===v.toLowerCase())){ toast("Already friends!"); return; }
- S.friends.push({name:v, seed:hashStr(v)}); save(); toast(v+" added!"); openSocial("friends");
-};
-window.raidFriend=i=>{ const f=S.friends[i]; if(!f) return; currentTarget=rollTarget(f); openSocial("raid"); };
-window.revengeRaid=i=>{
- const e=S.feed[i]; if(!e||e.type!=="in"||e.revenged) return;
- e.revenged=true;
- startRaid({name:e.name, seed:e.seed||hashStr(e.name),
-            stock:Math.max(e.amt*8, S.cash*0.8+600)}, true);
-};
-
-/* =================== Input: virtual joystick =================== */
-const joy=document.getElementById("joy"), knob=document.getElementById("joy-knob");
-let joyPointer=null;
-function joyMove(e){
- const r=joy.getBoundingClientRect();
- let dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2);
- const m=Math.hypot(dx,dy), max=r.width/2-10;
- if(m>max){ dx*=max/m; dy*=max/m; }
- knob.style.transform=`translate(${dx}px,${dy}px)`;
- if(m<16){ held=null; return; }   // dead zone
- if(Math.abs(dx)>Math.abs(dy)) held=[dx>0?1:-1,0];
- else held=[0,dy>0?1:-1];
-}
-function joyEnd(e){
- if(e.pointerId!==joyPointer) return;
- joyPointer=null; held=null;
- joy.classList.remove("active");
- knob.style.transform="translate(0,0)";
-}
-joy.addEventListener("pointerdown",e=>{
- e.preventDefault();
- joyPointer=e.pointerId;
- joy.setPointerCapture(e.pointerId);
- joy.classList.add("active");
- joyMove(e);
-});
-joy.addEventListener("pointermove",e=>{ if(e.pointerId===joyPointer) joyMove(e); });
-joy.addEventListener("pointerup",joyEnd);
-joy.addEventListener("pointercancel",joyEnd);
-
-// Tap-and-hold on the world also digs toward the touched tile.
-cv.addEventListener("pointerdown",e=>{
- if(modalOpen) return;
- const r=cv.getBoundingClientRect();
- const wx=e.clientX-r.left, wy=e.clientY-r.top+camY;
- const tc=Math.floor(wx/TS), tr=Math.floor(wy/TS);
- let dx=clamp(tc-drill.col,-1,1), dy=clamp(tr-drill.row,-1,1);
- if(Math.abs(tc-drill.col)>=Math.abs(tr-drill.row)) dy=0; else dx=0;
- if(dx||dy) held=[dx,dy];
-});
-["pointerup","pointercancel"].forEach(ev=>cv.addEventListener(ev,()=>{ held=null; }));
-window.addEventListener("keydown",e=>{
- const m={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowDown:[0,1],ArrowUp:[0,-1]};
- if(m[e.key]){ held=m[e.key]; e.preventDefault(); }
-});
-window.addEventListener("keyup",()=>{ if(joyPointer===null) held=null; });
-
-document.getElementById("btn-upg").innerHTML+=IC.drill();
-document.getElementById("btn-social").innerHTML+=IC.raid();
-document.getElementById("btn-shop").innerHTML=IC.bag();
-document.getElementById("btn-bomb").innerHTML+=IC.bolt("#ff9d3f");
-document.getElementById("btn-upg").addEventListener("click",()=>{
- if(raid){toast("Finish the raid first!");return;}
- if(inLevel){toast("Upgrades unlock between levels!");return;}
- openUpgrades(); });
-document.getElementById("btn-shop").addEventListener("click",()=>{
- if(raid){toast("Finish the raid first!");return;}
- if(inLevel){toast("The shop opens between levels!");return;}
- openShop(); });
-document.getElementById("btn-social").addEventListener("click",()=>{
- if(raid){endRaid();return;}
- if(inLevel){toast("Finish the level first!");return;}
- openSocial(); });
-document.getElementById("btn-bomb").addEventListener("click",useBomb);
-document.getElementById("btn-start").addEventListener("click",()=>{ if(!inLevel&&!raid) openLobby(); });
-document.getElementById("btn-box").innerHTML+=IC.chest();
-document.getElementById("btn-box").addEventListener("click",()=>openBoxes());
-
-/* =================== Render =================== */
-function biome(d){
- if(d<25) return ["#1b1206","#241808"];
- if(d<60) return ["#1f1009","#2a140b"];
- if(d<140) return ["#14161d","#1a1c26"];
- if(d<280) return ["#120e1d","#181226"];
- return ["#0d0716","#140a20"];
-}
-function draw(){
- ctx.setTransform(dpr,0,0,dpr,0,0);
- const sx=shake>0.1?rand(-shake,shake):0, sy=shake>0.1?rand(-shake,shake):0;
- ctx.translate(sx,sy);
- const centerD=depthOf(Math.floor((camY+H/2)/TS));
- const [c1,c2]=biome(centerD);
- const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,c1); bg.addColorStop(1,c2);
- ctx.fillStyle=bg; ctx.fillRect(-10,-10,W+20,H+20);
-
- // sky
- const surfY=0-camY;
- if(surfY>-TS){
-  const sky=ctx.createLinearGradient(0,surfY-H*0.8,0,surfY);
-  sky.addColorStop(0,"#0d2b54"); sky.addColorStop(0.7,"#2a6fb8"); sky.addColorStop(1,"#7db8e8");
-  ctx.fillStyle=sky; ctx.fillRect(-10,-10,W+20,surfY+10);
-  ctx.save(); ctx.shadowColor="#ffe9a8"; ctx.shadowBlur=40;
-  ctx.fillStyle="#ffe9a8"; ctx.beginPath(); ctx.arc(W*0.78,surfY-H*0.32,26,0,7); ctx.fill(); ctx.restore();
-  ctx.fillStyle="rgba(255,255,255,.85)";
-  for(const [cx,cy,s] of [[W*0.2,-0.22,1],[W*0.55,-0.4,0.7],[W*0.05,-0.45,0.8]]){
-   const y=surfY+cy*H;
-   ctx.beginPath(); ctx.arc(cx,y,16*s,0,7); ctx.arc(cx+18*s,y-6*s,13*s,0,7); ctx.arc(cx+36*s,y,15*s,0,7); ctx.fill();
-  }
-  ctx.fillStyle="#3f7d2e"; ctx.fillRect(0,surfY-5,W,5); // grass lip
- }
-
- // tiles
- const r0=Math.floor(camY/TS)-1, r1=Math.ceil((camY+H)/TS)+1;
- for(let r=Math.max(0,r0);r<=r1;r++){
-  const row=getRow(r);
-  for(let c=0;c<COLS;c++){
-   const tile=row[c]; if(tile.t===T.EMPTY) continue;
-   const x=c*TS, y=r*TS-camY;
-   ctx.drawImage(sprites[tile.t],x,y,TS,TS);
-   const dmg=1-tile.hp/tile.maxHp;
-   if(dmg>0.05){
-    ctx.strokeStyle="rgba(0,0,0,"+(0.35+dmg*0.4)+")"; ctx.lineWidth=1.6;
-    let s=(c*73856093^r*19349663)>>>0;
-    const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
-    const n=1+Math.floor(dmg*3);
-    for(let i=0;i<n;i++){
-     ctx.beginPath(); let px=x+TS*(0.2+rnd()*0.6), py=y+TS*(0.2+rnd()*0.6);
-     ctx.moveTo(px,py);
-     for(let j=0;j<3;j++){ px+=(rnd()-0.5)*TS*0.5; py+=(rnd()-0.5)*TS*0.5; ctx.lineTo(px,py); }
-     ctx.stroke();
-    }
-   }
-  }
- }
-
- drawDrill();
-
+ // combo decay
+ if(combo>0 && nowS()-comboT>1.4) combo=0;
+ // biome banner
+ const b=Math.floor(depthM/BAL.biome); if(b>lastBiome){ lastBiome=b; announce(biomeName(depthM),"#7ad7ff"); haptic(20); }
+ // personal best
+ if(!beatBest && S.best>0 && depthM>S.best){ beatBest=true; announce("NEW BEST!","#ffd24a"); haptic(40); }
+ shake=Math.max(0,shake-dt*30);
  // particles
- for(const p of parts){
-  ctx.globalAlpha=clamp(p.life/p.max,0,1);
-  ctx.fillStyle=p.col; ctx.fillRect(p.x-p.size/2,p.y-camY-p.size/2,p.size,p.size);
- }
+ for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=600*dt; if(p.life<=0) parts.splice(i,1); }
+ for(let i=pops.length-1;i>=0;i--){ pops[i].life-=dt*1.1; if(pops[i].life<=0) pops.splice(i,1); }
+}
+
+/* ===== render ===== */
+function draw(){
+ const sx=shake>.2?rand(-shake,shake):0, sy=shake>.2?rand(-shake,shake):0;
+ ctx.setTransform(dpr,0,0,dpr,sx*dpr,sy*dpr);
+ const [c1,c2]=biomeAt(depthM);
+ const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,c1); bg.addColorStop(1,c2);
+ ctx.fillStyle=bg; ctx.fillRect(-20,-20,W+40,H+40);
+ // speed lines
+ const sp=speed/BAL.speedCap;
+ ctx.strokeStyle="rgba(255,255,255,"+(0.04+sp*0.07)+")"; ctx.lineWidth=2;
+ for(let i=0;i<10;i++){ const lx=((i*53+ (drill.y*0.5))%W); const ll=20+sp*60;
+  ctx.beginPath(); ctx.moveTo(lx,(i*70+ (drill.y* (1+sp))%H)%H); ctx.lineTo(lx,((i*70+(drill.y*(1+sp))%H)%H)+ll); ctx.stroke(); }
+
+ const top=drill.y-DRILLY, i0=Math.floor(top/BAL.sliceH)-1, i1=Math.floor((top+H)/BAL.sliceH)+1;
+ genTo(i1+2);
+ // walls as filled regions
+ ctx.fillStyle="#11131f";
+ ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(0,H+20);
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; const y=DRILLY+(i*BAL.sliceH-drill.y); ctx.lineTo(s.cx-s.half+s.li,y); }
+ ctx.lineTo(0,-20); ctx.closePath(); ctx.fill();
+ ctx.beginPath(); ctx.moveTo(W,-20); ctx.lineTo(W,H+20);
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; const y=DRILLY+(i*BAL.sliceH-drill.y); ctx.lineTo(s.cx+s.half-s.ri,y); }
+ ctx.lineTo(W,-20); ctx.closePath(); ctx.fill();
+ // wall edges glow
+ ctx.strokeStyle="rgba(120,160,255,.25)"; ctx.lineWidth=3;
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y); const x=s.cx-s.half+s.li; i===i0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y); const x=s.cx+s.half-s.ri; i===i0?ctx.moveTo(x,y):ctx.lineTo(x,y);} ctx.stroke();
+ // spike highlights (red tips)
+ ctx.fillStyle="rgba(255,80,90,.85)";
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=DRILLY+(i*BAL.sliceH-drill.y);
+  if(s.li>2){ ctx.beginPath(); ctx.arc(s.cx-s.half+s.li,y,2.4,0,7); ctx.fill(); }
+  if(s.ri>2){ ctx.beginPath(); ctx.arc(s.cx+s.half-s.ri,y,2.4,0,7); ctx.fill(); } }
+ // gems
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s||!s.gem||s.gem.taken)continue; const y=DRILLY+(i*BAL.sliceH-drill.y);
+  drawGem(s.gem.x,y,7,"#ff5f9e"); }
+ // best line
+ if(S.best>0 && mode==="playing"){ const by=DRILLY+(S.best*BAL.pxPerM-drill.y); if(by>-20&&by<H+20){
+  ctx.strokeStyle="rgba(255,210,74,.6)"; ctx.lineWidth=2; ctx.setLineDash([8,6]);
+  ctx.beginPath(); ctx.moveTo(0,by); ctx.lineTo(W,by); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#ffd24a"; ctx.font="800 11px sans-serif"; ctx.textAlign="left"; ctx.fillText("BEST "+S.best+"m",6,by-4); } }
+ // trail
+ for(let i=0;i<trail.length;i++){ const t=trail[i]; ctx.globalAlpha=(i/trail.length)*0.4;
+  ctx.fillStyle=skinById(S.skin).glow||"#ff9d3f"; ctx.beginPath(); ctx.arc(t.x,t.y,3+ i*0.2,0,7); ctx.fill(); }
  ctx.globalAlpha=1;
-
- // darkness + headlamp
- const d=depthOf(drill.row);
- const dark=clamp((d-6)/90,0,0.82);
- if(dark>0.02){
-  const cx=drill.px+TS/2, cy=drill.py-camY+TS/2;
-  const g=ctx.createRadialGradient(cx,cy,TS*1.2,cx,cy,TS*4.5);
-  g.addColorStop(0,"rgba(4,4,14,0)"); g.addColorStop(1,"rgba(4,4,14,"+dark+")");
-  ctx.fillStyle=g; ctx.fillRect(-10,-10,W+20,H+20);
- }
-
- // floating texts
- for(const f of floats){
-  ctx.globalAlpha=clamp(f.life,0,1);
-  ctx.font="900 "+f.size+"px -apple-system,sans-serif";
-  ctx.textAlign="center";
-  ctx.lineWidth=3; ctx.strokeStyle="rgba(0,0,0,.6)";
-  const y=f.y-camY-(1-f.life)*60;
-  ctx.strokeText(f.text,f.x,y); ctx.fillStyle=f.col; ctx.fillText(f.text,f.x,y);
- }
+ // drill
+ if(mode!=="dead") drawDrill(drill.x,DRILLY,drill.tilt);
+ // particles
+ for(const p of parts){ ctx.globalAlpha=clamp(p.life/p.max,0,1); ctx.fillStyle=p.col;
+  ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); }
  ctx.globalAlpha=1;
+ // pops
+ for(const p of pops){ ctx.globalAlpha=clamp(p.life,0,1); ctx.font="900 16px sans-serif"; ctx.textAlign="center";
+  ctx.fillStyle=p.col; ctx.fillText(p.txt,p.x,p.y-(0.9-p.life)*40); }
+ ctx.globalAlpha=1; ctx.textAlign="left";
 }
-// Elite drills: layered hulls, energy wings, orbiting orbs, rings.
-// `t` animates them in-game; thumbnails pass t=0.
-function drawEliteWings(c,s,k,t){
- const flap=Math.sin(t*3)*s*0.05;
- c.save(); c.shadowColor=k.glow; c.shadowBlur=14; c.fillStyle=k.wingCol||k.glow;
- for(const side of [-1,1]){
-  c.save(); c.scale(side,1);
-  c.beginPath();
-  if(k.wings==="scythe"){
-   c.moveTo(s*0.18,-s*0.05);
-   c.quadraticCurveTo(s*0.55,-s*0.34-flap, s*0.64,-s*0.02);
-   c.quadraticCurveTo(s*0.45,-s*0.14-flap, s*0.2,s*0.1);
-  } else if(k.wings==="flame"){
-   c.moveTo(s*0.16,0);
-   c.lineTo(s*0.5,-s*0.24-flap); c.lineTo(s*0.42,-flap*0.5);
-   c.lineTo(s*0.62,s*0.1); c.lineTo(s*0.2,s*0.12);
-  } else { // ice shards
-   c.moveTo(s*0.16,-s*0.02); c.lineTo(s*0.5,-s*0.28-flap); c.lineTo(s*0.34,0);
-   c.lineTo(s*0.6,s*0.06); c.lineTo(s*0.2,s*0.1);
-  }
-  c.closePath(); c.fill(); c.restore();
- }
- c.restore();
-}
-function drawEliteChassis(c,s,k,t){
- c.save();
- // hover glow base
- c.save(); c.shadowColor=k.glow; c.shadowBlur=10; c.strokeStyle=k.glow;
- c.globalAlpha=0.7; c.lineWidth=2.5;
- c.beginPath(); c.ellipse(0,s*0.32,s*0.26,s*0.06,0,0,7); c.stroke(); c.restore();
- if(k.wings) drawEliteWings(c,s,k,t);
- // spikes behind hull
- if(k.spikes){
-  c.fillStyle=k.bot;
-  for(let i=0;i<6;i++){ const a=-Math.PI*0.9+i*Math.PI*0.36;
-   const x=Math.cos(a)*s*0.26, y=-s*0.04+Math.sin(a)*s*0.26;
-   c.beginPath(); c.moveTo(x,y);
-   c.lineTo(x+Math.cos(a)*s*0.14,y+Math.sin(a)*s*0.14);
-   c.lineTo(x+Math.cos(a+0.5)*s*0.05,y+Math.sin(a+0.5)*s*0.05);
-   c.closePath(); c.fill(); }
- }
- // hull
- c.shadowColor=k.glow; c.shadowBlur=18;
- const bg=c.createLinearGradient(0,-s*0.36,0,s*0.26);
- bg.addColorStop(0,k.top); bg.addColorStop(1,k.bot);
- c.fillStyle=bg;
- c.beginPath();
- switch(k.hull){
-  case "diamond":
-   c.moveTo(0,-s*0.38); c.lineTo(s*0.3,-s*0.05); c.lineTo(s*0.18,s*0.28);
-   c.lineTo(-s*0.18,s*0.28); c.lineTo(-s*0.3,-s*0.05); c.closePath(); break;
-  case "serpent":
-   roundRect(c,-s*0.4,-s*0.16,s*0.8,s*0.34,s*0.17); break;
-  case "dragon":
-   c.moveTo(-s*0.34,s*0.22); c.lineTo(-s*0.3,-s*0.18); c.lineTo(-s*0.1,-s*0.32);
-   c.lineTo(s*0.22,-s*0.28); c.lineTo(s*0.38,-s*0.05); c.lineTo(s*0.3,s*0.22); c.closePath(); break;
-  default: // core
-   c.arc(0,-s*0.02,s*0.24,0,7);
- }
- c.fill(); c.shadowBlur=0;
- c.strokeStyle="rgba(255,255,255,.3)"; c.lineWidth=1.5; c.stroke();
- // hull details
- if(k.hull==="diamond"){
-  c.strokeStyle="rgba(255,255,255,.35)"; c.lineWidth=1;
-  c.beginPath(); c.moveTo(0,-s*0.38); c.lineTo(0,s*0.28);
-  c.moveTo(-s*0.3,-s*0.05); c.lineTo(s*0.3,-s*0.05); c.stroke();
- }
- if(k.hull==="serpent"){
-  c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1.5;
-  for(let i=-1;i<=1;i++){ c.beginPath(); c.moveTo(i*s*0.18,-s*0.16); c.lineTo(i*s*0.18,s*0.18); c.stroke(); }
- }
- if(k.hull==="dragon"){
-  c.fillStyle=k.top;   // horns
-  c.beginPath(); c.moveTo(-s*0.24,-s*0.22); c.lineTo(-s*0.32,-s*0.44); c.lineTo(-s*0.12,-s*0.3); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(s*0.02,-s*0.28); c.lineTo(s*0.0,-s*0.46); c.lineTo(s*0.16,-s*0.3); c.closePath(); c.fill();
-  c.fillStyle="#ff4d6d";  // eye
-  c.beginPath(); c.arc(s*0.22,-s*0.1,s*0.05,0,7); c.fill();
- }
- if(k.hull==="core"){
-  c.fillStyle="rgba(255,255,255,.9)";
-  c.beginPath(); c.arc(0,-s*0.02,s*0.1,0,7); c.fill();
- }
- // rotating ring
- if(k.ring){
-  c.save(); c.rotate(t*0.8); c.strokeStyle=k.glow; c.lineWidth=2.5;
-  c.shadowColor=k.glow; c.shadowBlur=8;
-  c.beginPath(); c.ellipse(0,-s*0.02,s*0.4,s*0.12,0,0,7); c.stroke(); c.restore();
- }
- // orbiting orbs
- for(let i=0;i<(k.orbs||0);i++){
-  const a=t*2+i*Math.PI*2/(k.orbs||1);
-  const ox=Math.cos(a)*s*0.42, oy=-s*0.02+Math.sin(a)*s*0.18;
-  c.save(); c.shadowColor=k.glow; c.shadowBlur=10; c.fillStyle=k.glow;
-  c.beginPath(); c.arc(ox,oy,s*0.05,0,7); c.fill(); c.restore();
- }
- // cockpit gem
- if(k.hull!=="core"){
-  c.fillStyle="rgba(255,255,255,.85)";
-  c.beginPath(); c.arc(-s*0.05,-s*0.08,s*0.07,0,7); c.fill();
- }
- c.restore();
-}
-
-// Chassis (ring/treads + hull + accessories + cockpit) for a given skin.
-// Shared by the in-game drill and the shop preview thumbnails.
-function drawDrillChassis(c,s,skin,t){
- if(skin.design==="elite"){ drawEliteChassis(c,s,skin,t||0); return; }
- // hover ring or treads, depending on design
- if(skin.design==="orb"){
-  c.save(); c.shadowColor=skin.glow; c.shadowBlur=12;
-  c.strokeStyle=skin.glow; c.lineWidth=3;
-  c.beginPath(); c.ellipse(0,s*0.3,s*0.3,s*0.08,0,0,7); c.stroke(); c.restore();
- } else {
-  c.fillStyle="#1c1d28"; roundRect(c,-s*0.38,s*0.18,s*0.76,s*0.22,s*0.1); c.fill();
-  c.strokeStyle="rgba(255,255,255,.2)"; c.lineWidth=1.5;
-  for(let i=-2;i<=2;i++){ c.beginPath(); c.moveTo(i*s*0.13,s*0.2); c.lineTo(i*s*0.13,s*0.38); c.stroke(); }
- }
- // body shape per design
- const bg=c.createLinearGradient(0,-s*0.34,0,s*0.2);
- bg.addColorStop(0,skin.top); bg.addColorStop(1,skin.bot);
- if(skin.glow){ c.shadowColor=skin.glow; c.shadowBlur=14; }
- c.fillStyle=bg;
- c.beginPath();
- switch(skin.design){
-  case "borer":   // angular hex hull
-   c.moveTo(-s*0.34,0); c.lineTo(-s*0.2,-s*0.3); c.lineTo(s*0.2,-s*0.3);
-   c.lineTo(s*0.34,0); c.lineTo(s*0.2,s*0.22); c.lineTo(-s*0.2,s*0.22); c.closePath();
-   break;
-  case "striker": // low, sleek wedge
-   c.moveTo(-s*0.36,s*0.2); c.lineTo(-s*0.22,-s*0.16); c.lineTo(s*0.3,-s*0.16);
-   c.lineTo(s*0.36,s*0.2); c.closePath();
-   break;
-  case "crawler": // heavy slab hull
-   roundRect(c,-s*0.38,-s*0.24,s*0.76,s*0.46,s*0.05);
-   break;
-  case "orb":     // floating sphere
-   c.arc(0,-s*0.02,s*0.27,0,7);
-   break;
-  default:        // rig & crown: rounded cab
-   roundRect(c,-s*0.32,-s*0.28,s*0.64,s*0.5,s*0.12);
- }
- c.fill(); c.shadowBlur=0;
- c.strokeStyle="rgba(0,0,0,.35)"; c.lineWidth=1.5; c.stroke();
-
- // design-specific accessories
- if(skin.design==="crown"){      // golden crown spikes
-  c.fillStyle=skin.top;
-  for(let i=-1;i<=1;i++){ c.beginPath();
-   c.moveTo(i*s*0.16-s*0.06,-s*0.28); c.lineTo(i*s*0.16,-s*0.44);
-   c.lineTo(i*s*0.16+s*0.06,-s*0.28); c.closePath(); c.fill(); }
- }
- if(skin.design==="crawler"){    // twin exhaust pipes with embers
-  c.fillStyle="#5b2020";
-  c.fillRect(-s*0.22,-s*0.4,s*0.08,s*0.18); c.fillRect(s*0.1,-s*0.4,s*0.08,s*0.18);
-  c.fillStyle="#ffd54a";
-  c.beginPath(); c.arc(-s*0.18,-s*0.44,s*0.035,0,7); c.fill();
-  c.beginPath(); c.arc(s*0.14,-s*0.43,s*0.035,0,7); c.fill();
- }
- if(skin.design==="striker"){    // tail fin
-  c.fillStyle=skin.bot;
-  c.beginPath(); c.moveTo(-s*0.3,-s*0.14); c.lineTo(-s*0.44,-s*0.34); c.lineTo(-s*0.22,-s*0.16);
-  c.closePath(); c.fill();
- }
- if(skin.design==="borer"){      // twin side cutters
-  c.fillStyle="#c8cdd8";
-  c.beginPath(); c.moveTo(-s*0.34,-s*0.06); c.lineTo(-s*0.46,0); c.lineTo(-s*0.34,s*0.06); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(s*0.34,-s*0.06); c.lineTo(s*0.46,0); c.lineTo(s*0.34,s*0.06); c.closePath(); c.fill();
- }
- // cockpit window (orb gets a core instead)
- if(skin.design==="orb"){
-  c.fillStyle="#fff"; c.beginPath(); c.arc(0,-s*0.02,s*0.08,0,7); c.fill();
- } else {
-  c.fillStyle="#9fe8ff"; c.beginPath(); c.arc(-s*0.08,-s*0.07,s*0.11,0,7); c.fill();
-  c.fillStyle="rgba(255,255,255,.7)"; c.beginPath(); c.arc(-s*0.11,-s*0.1,s*0.04,0,7); c.fill();
- }
-}
-function drawDrillBit(c,s,skin,wob){
- c.save();
- if(skin.design==="crown") c.scale(1.18,1.18);
- c.fillStyle="#c8cdd8";
- c.beginPath(); c.moveTo(s*0.3,-s*0.12+wob); c.lineTo(s*0.56,wob*0.5); c.lineTo(s*0.3,s*0.12+wob); c.closePath(); c.fill();
- c.strokeStyle="#5b6170"; c.lineWidth=1.5;
- for(let i=0;i<3;i++){ const t=0.34+i*0.07;
-  c.beginPath(); c.moveTo(s*t,-s*0.1+wob); c.lineTo(s*t,s*0.1+wob); c.stroke(); }
- c.restore();
-}
-
-// Pre-rendered shop thumbnails: the REAL drill, not a color swatch.
-const skinThumbs={};
-function skinThumb(skin){
- if(skinThumbs[skin.id]) return skinThumbs[skin.id];
- const tc=document.createElement("canvas");
- tc.width=tc.height=112;
- const c=tc.getContext("2d");
- c.translate(50,56);            // nudge left so the bit fits
- drawDrillChassis(c,64,skin,0);
- drawDrillBit(c,64,skin,0);
- skinThumbs[skin.id]=tc.toDataURL();
- return skinThumbs[skin.id];
-}
-
-function drawDrill(){
- const x=drill.px, y=drill.py-camY, s=TS;
- const [dx,dy]=drill.dir;
- const skin=skinById(S.skin);
- // elite drills shed glowing aura particles
- if(skin.design==="elite"&&Math.random()<0.25){
-  parts.push({x:drill.px+TS/2+rand(-TS*0.3,TS*0.3), y:drill.py+TS*0.8,
-    vx:rand(-12,12), vy:rand(-34,-12), life:0.6, max:0.6, size:rand(1.5,3), col:skin.glow, grav:0});
- }
- ctx.save(); ctx.translate(x+s/2,y+s/2);
- drawDrillChassis(ctx,s,skin,performance.now()/1000);
- // status light (wings = green, frenzy = gold)
- if(skin.design!=="orb"&&skin.design!=="crown"&&skin.design!=="elite"){
-  ctx.strokeStyle="#888"; ctx.beginPath(); ctx.moveTo(s*0.16,-s*0.28); ctx.lineTo(s*0.16,-s*0.4); ctx.stroke();
-  ctx.fillStyle=wingsOn()?"#19e3b1":frenzyOn()?"#ffd54a":"#ff5252";
-  ctx.beginPath(); ctx.arc(s*0.16,-s*0.42,s*0.045,0,7); ctx.fill();
- }
- // wings powerup: glowing thruster jets under the hull
- if(wingsOn()){
-  ctx.save(); ctx.shadowColor="#19e3b1"; ctx.shadowBlur=12; ctx.fillStyle="#19e3b1";
-  const j=Math.abs(Math.sin(performance.now()/80))*s*0.1;
-  ctx.beginPath(); ctx.moveTo(-s*0.18,s*0.4); ctx.lineTo(-s*0.12,s*0.55+j); ctx.lineTo(-s*0.06,s*0.4); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(s*0.06,s*0.4); ctx.lineTo(s*0.12,s*0.55+j); ctx.lineTo(s*0.18,s*0.4); ctx.closePath(); ctx.fill();
-  ctx.restore();
- }
- // drill bit toward movement direction
- ctx.save(); ctx.rotate(dy===-1?-Math.PI/2:dy===1?Math.PI/2:dx===-1?Math.PI:0);
- drawDrillBit(ctx,s,skin,Math.sin(drill.bitSpin*6)*s*0.02);
- ctx.restore();
+function drawGem(x,y,r,col){ ctx.save(); ctx.translate(x,y); ctx.shadowColor=col; ctx.shadowBlur=10;
+ ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.8,-r*.2); ctx.lineTo(r*.5,r); ctx.lineTo(-r*.5,r); ctx.lineTo(-r*.8,-r*.2); ctx.closePath();
+ ctx.fillStyle=col; ctx.fill(); ctx.restore(); }
+function drawDrill(x,y,tilt){ const s=30, sk=skinById(S.skin); ctx.save(); ctx.translate(x,y); ctx.rotate(tilt);
+ if(invuln>0&&Math.floor(invuln*12)%2) ctx.globalAlpha=0.5;
+ // shield ring
+ if(shields>0){ ctx.strokeStyle="rgba(122,215,255,.8)"; ctx.lineWidth=2.5; ctx.shadowColor="#7ad7ff"; ctx.shadowBlur=10;
+  ctx.beginPath(); ctx.arc(0,0,s*0.7,0,7); ctx.stroke(); ctx.shadowBlur=0; }
+ const g=ctx.createLinearGradient(0,-s*.5,0,s*.5); g.addColorStop(0,sk.top); g.addColorStop(1,sk.bot);
+ if(sk.glow){ ctx.shadowColor=sk.glow; ctx.shadowBlur=14; }
+ ctx.fillStyle=g; ctx.beginPath();
+ ctx.moveTo(-s*.34,-s*.4); ctx.lineTo(s*.34,-s*.4); ctx.lineTo(s*.34,s*.12); ctx.lineTo(0,s*.5); ctx.lineTo(-s*.34,s*.12); ctx.closePath();
+ ctx.fill(); ctx.shadowBlur=0;
+ ctx.strokeStyle="rgba(0,0,0,.35)"; ctx.lineWidth=1.5; ctx.stroke();
+ // bit
+ ctx.fillStyle="#c8cdd8"; ctx.beginPath(); ctx.moveTo(-s*.16,s*.4); ctx.lineTo(s*.16,s*.4); ctx.lineTo(0,s*.66); ctx.closePath(); ctx.fill();
+ // window
+ ctx.fillStyle="#9fe8ff"; ctx.beginPath(); ctx.arc(0,-s*.08,s*.13,0,7); ctx.fill();
+ ctx.fillStyle="rgba(255,255,255,.7)"; ctx.beginPath(); ctx.arc(-s*.04,-s*.12,s*.05,0,7); ctx.fill();
  ctx.restore();
 }
 
-/* =================== HUD =================== */
-const elCash=document.getElementById("cash-pill"), elDepth=document.getElementById("depth-pill"),
-      elGems=document.getElementById("gems-pill"), elBar=document.getElementById("energy-bar"),
-      elWrap=document.getElementById("energy-wrap"), elLabel=document.getElementById("energy-label"),
-      elChips=document.getElementById("chips");
+/* ===== HUD ===== */
+const elDist=document.getElementById("dist"), elBest=document.getElementById("best"),
+      elGem=document.getElementById("gem-pill"), elCombo=document.getElementById("combo");
 function hud(){
- elCash.innerHTML=IC.coin()+"<span>"+fmt(S.cash)+"</span>";
- elDepth.innerHTML=IC.depth()+"<span>"+depthOf(drill.row)+"m</span>";
- elGems.innerHTML=IC.gem()+"<span>"+S.gems+"</span>";
- const frac=S.energy/maxEnergy();
- elBar.style.width=(frac*100)+"%";
- elWrap.classList.toggle("low",frac<0.25);
- elLabel.textContent="FUEL "+Math.floor(S.energy)+" / "+maxEnergy();
- // level timer strip at the very top + filling goal chip
- const tTop=document.getElementById("time-top");
- tTop.style.display=inLevel?"block":"none";
- if(inLevel){
-  const tl=Math.max(0,levelTimeLeft);
-  document.getElementById("time-top-bar").style.width=(tl/BAL.levelTime*100)+"%";
-  tTop.classList.toggle("low",tl<10);
- }
- let chips="";
- if(inLevel){
-  const tl=Math.ceil(Math.max(0,levelTimeLeft));
-  chips+='<div class="chip '+(tl<10?"frenzy":"boost")+'">LV '+S.level+' • '+tl+'s • '+levelMaxDepth+'/'+BAL.levelDepth(S.level)+'m</div>';
-  const goal=BAL.levelCash(S.level), gf=clamp(levelPot/goal,0,1);
-  chips+='<div class="goalchip'+(gf>=1?" done":"")+'"><div class="fill" style="width:'+(gf*100)+'%"></div><span>'+fmt(levelPot)+' / '+fmt(goal)+'</span></div>';
- }
- if(raid) chips+='<div class="chip frenzy">RAID '+Math.max(0,Math.ceil(raid.endAt-nowS()))+"s • "+raid.vaults+" VAULTS • LOOT "+fmt(raid.loot)+"</div>";
- if(wingsOn()) chips+='<div class="chip frenzy">WINGS '+Math.max(0,Math.ceil(S.wingsUntil-nowS()))+"s</div>";
- if(frenzyOn()) chips+='<div class="chip frenzy">FRENZY ×2 • '+dur(S.frenzyUntil-nowS())+"</div>";
- if(boostOn()) chips+='<div class="chip boost">×2 INCOME • '+dur(S.boostUntil-nowS())+"</div>";
- if(!raid&&shieldOn()) chips+='<div class="chip boost">SHIELD '+dur(S.shieldUntil-nowS())+"</div>";
- if(!raid&&S.relics) chips+='<div class="chip relic">RELICS +'+Math.round(S.relics*BAL.relicBonus*100)+"%</div>";
- elChips.innerHTML=chips;
- if(nowS()-comboAt>5){ combo=0; document.getElementById("combo").classList.remove("show"); }
- // raid ticket regen
- while(S.raidTickets<ticketCap()&&nowS()-S.ticketAt>=7200){ S.raidTickets++; S.ticketAt+=7200; }
- if(S.raidTickets>=ticketCap()) S.ticketAt=nowS();
- document.getElementById("btn-social").classList.toggle("leave",!!raid);
- const bombEl=document.getElementById("bomb-count");
- bombEl.textContent=S.bombs;
- document.getElementById("btn-bomb").style.opacity=S.bombs>0?1:0.45;
- const startBtn=document.getElementById("btn-start");
- startBtn.style.display=(!inLevel&&!raid&&!modalOpen)?"block":"none";
- startBtn.textContent="START LEVEL "+S.level;
- const boxBtn=document.getElementById("btn-box");
- boxBtn.style.display=(!inLevel&&!raid&&!modalOpen&&S.boxes.length)?"flex":"none";
- document.getElementById("box-count").textContent=S.boxes.length;
- document.getElementById("soc-badge").classList.toggle("on",
-   !raid&&S.feed.some(f=>f.type==="in"&&!f.revenged));
- document.getElementById("upg-badge").classList.toggle("on", !raid&&
-   S.cash>=Math.min(BAL.powerCost(S.up.power),BAL.tankCost(S.up.tank),BAL.regenCost(S.up.regen)));
+ elDist.innerHTML=Math.floor(depthM)+"<small>m</small>";
+ elBest.textContent=S.best>0?("BEST "+S.best+"m"):"";
+ elGem.innerHTML=IC.gem()+"<span>"+(S.gems+ (mode==="playing"?runGems:0))+"</span>";
+ if(combo>=2){ elCombo.textContent="x"+(1+Math.min(combo,10)*0.5).toFixed(1)+" GEMS"; elCombo.classList.add("show"); }
+ else elCombo.classList.remove("show");
+ document.getElementById("hud").style.opacity=mode==="menu"?0:1;
 }
 
-/* =================== Main loop =================== */
-let last=performance.now(), saveAt=0;
-function loop(t){
- const dt=clamp((t-last)/1000,0,0.05); last=t;
- // movement anim
- if(drill.anim){ const a=drill.anim; a.t+=dt;
-  const k=clamp(a.t/a.dur,0,1), e=1-Math.pow(1-k,2);
-  drill.px=a.fx+(a.tx-a.fx)*e; drill.py=a.fy+(a.ty-a.fy)*e;
-  if(k>=1){ drill.px=a.tx; drill.py=a.ty; drill.anim=null; }
- }
- tryDig(dt);
- if(raid&&nowS()>raid.endAt) endRaid();
- if(inLevel){
-  if(!modalOpen&&!adBusy) levelTimeLeft-=dt;   // popups & ads pause the clock
-  if(levelPot>=BAL.levelCash(S.level)&&levelMaxDepth>=BAL.levelDepth(S.level)) endLevel(true);
-  else if(levelTimeLeft<=0) endLevel(false);
- }
- // energy only — there is no passive income; every coin is earned in a level or raid
- S.energy=clamp(S.energy+BAL.regenRate(S.up.regen)*dt,0,maxEnergy());
- // camera
- const target=drill.py-H*0.42;
- camY+=(Math.max(target,-H*0.78)-camY)*Math.min(1,dt*6);
- shake=Math.max(0,shake-dt*14);
- // particles & floats
- for(let i=parts.length-1;i>=0;i--){ const p=parts[i];
-  p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=p.grav*dt;
-  if(p.life<=0) parts.splice(i,1); }
- for(let i=floats.length-1;i>=0;i--){ floats[i].life-=dt*0.9; if(floats[i].life<=0) floats.splice(i,1); }
- draw(); hud();
- if(t>saveAt){ save(); saveAt=t+5000; }
- requestAnimationFrame(loop);
+/* ===== ads ===== */
+let adBusy=false;
+function watchAd(cb){ if(S.battlePass){ cb(); save(); return; } if(adBusy) return; adBusy=true; holding=false;
+ const ov=document.getElementById("ad"); ov.style.display="flex"; let n=3; document.getElementById("ad-s").textContent=n;
+ const iv=setInterval(()=>{ n--; if(n<=0){ clearInterval(iv); ov.style.display="none"; adBusy=false; cb(); save(); }
+  else document.getElementById("ad-s").textContent=n; },1000); }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block";
+ clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",1800); }
+
+/* ===== modals ===== */
+const modal=document.getElementById("modal"), card=document.getElementById("card");
+function openModal(html,locked){ card.innerHTML=html; modal.classList.add("open"); modal._lock=!!locked; }
+function closeModal(){ modal.classList.remove("open"); if(mode==="dead"){ /* stays dead until restart */ } }
+modal.addEventListener("pointerdown",e=>{ if(e.target===modal&&!modal._lock) closeModal(); });
+const X='<button class="m-close" onclick="closeModal()">✕</button>';
+
+function showDeath(){
+ const earned=runGems;
+ window._collect=m=>{ S.gems+=earned*m; save(); endRunToMenu(); };
+ window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
+ window._revive=()=>watchAd(()=>revive());
+ openModal(`
+  <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"You crashed"}</div>
+  <div class="m-sub">${biomeName(depthM)} • run #${S.runs}</div>
+  <div class="big-num">${Math.floor(depthM)}m</div>
+  <div class="stat-row"><span>Best</span><b>${S.best}m</b></div>
+  <div class="stat-row"><span>Gems this run</span><b>${earned}</b></div>
+  ${!usedRevive?`<button class="cta ad" onclick="_revive()">REVIVE — watch ad<span class="s">keep this run going</span></button>`:""}
+  ${earned>0?`<button class="cta ad" onclick="_collectAd()">Collect ${earned*2} gems — watch ad</button>`:""}
+  <button class="cta" onclick="_collect(1)">Dive again${earned>0?" (+"+earned+" gems)":""}</button>`,true);
 }
-window.addEventListener("resize",()=>{ resize(); drill.px=drill.col*TS; drill.py=drill.row*TS; });
-document.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); });
-resize();
-drill.px=drill.col*TS; drill.py=drill.row*TS; camY=drill.py-H*0.42;
+function endRunToMenu(){ runGems=0; mode="menu"; closeModal(); document.getElementById("start").classList.remove("hide"); }
+
+/* ===== shop ===== */
+let shopTab="skins";
+function shopSkins(){ return SKINS.map(k=>{ const owned=S.skins.includes(k.id), on=S.skin===k.id;
+  const sw=`<div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(${k.top},${k.bot});box-shadow:0 0 10px ${k.glow||"transparent"}"></div>`;
+  const btn=on?`<button class="buy" disabled>Equipped</button>`:owned?`<button class="buy" onclick="equip('${k.id}')">Equip</button>`
+   :`<button class="buy gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
+  return `<div class="row">${sw}<div class="info"><div class="nm">${k.name}</div><div class="sb">${on?"Equipped":owned?"Owned":"Drill skin"}</div></div>${btn}</div>`; }).join(""); }
+function shopUpgrades(){ const sc=BAL.shieldCost(S.shieldLvl), mc=BAL.magnetCost(S.magnetLvl);
+ return `
+  <div class="row"><div class="info"><div class="nm">Start Shield • Lv ${S.shieldLvl}</div><div class="sb">Begin each run absorbing ${S.shieldLvl} hit${S.shieldLvl===1?"":"s"}</div></div>
+   <button class="buy gems" ${S.gems>=sc?"":"disabled"} onclick="buyUp('shield')">${IC.gem("#fff")}${sc}</button></div>
+  <div class="row"><div class="info"><div class="nm">Gem Magnet • Lv ${S.magnetLvl}</div><div class="sb">Pull nearby gems toward you</div></div>
+   <button class="buy gems" ${S.gems>=mc?"":"disabled"} onclick="buyUp('magnet')">${IC.gem("#fff")}${mc}</button></div>`; }
+function shopGems(){ return `
+  <div class="row"><div class="info"><div class="nm">Battle Pass</div><div class="sb">${S.battlePass?"Active — no ads, instant rewards":"No ads • +25% gems • monthly"}</div></div>
+   <button class="buy iap" ${S.battlePass?"disabled":""} onclick="iapPass()">${S.battlePass?"Active":"$7.99"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Remove Ads</div><div class="sb">Keep optional rewarded ads</div></div>
+   <button class="buy iap" ${S.removeAds?"disabled":""} onclick="iapAds()">${S.removeAds?"Owned":"$4.99"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Pouch of Gems</div><div class="sb">200 gems</div></div><button class="buy iap" onclick="iapGems(200)">$1.99</button></div>
+  <div class="row"><div class="info"><div class="nm">Chest of Gems</div><div class="sb">1200 gems • best value</div></div><button class="buy iap" onclick="iapGems(1200)">$7.99</button></div>`; }
+window.openShop=function(t){ if(t)shopTab=t; const tb=(id,l)=>`<button class="tab ${shopTab===id?"on":""}" onclick="openShop('${id}')">${l}</button>`;
+ openModal(X+`<div class="m-title">Garage</div><div class="m-sub">Spend gems • purchases simulated in this prototype</div>
+  <div class="tabs">${tb("skins","DRILLS")}${tb("upgrades","UPGRADES")}${tb("gems","GEMS")}</div>
+  ${shopTab==="skins"?shopSkins():shopTab==="upgrades"?shopUpgrades():shopGems()}`); };
+window.buySkin=id=>{ const k=skinById(id); if(S.gems<k.cost||S.skins.includes(id))return; S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop("skins"); };
+window.equip=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop("skins"); } };
+window.buyUp=k=>{ if(k==="shield"){ const c=BAL.shieldCost(S.shieldLvl); if(S.gems<c)return; S.gems-=c; S.shieldLvl++; }
+ else { const c=BAL.magnetCost(S.magnetLvl); if(S.gems<c)return; S.gems-=c; S.magnetLvl++; } save(); openShop("upgrades"); };
+window.iapGems=n=>{ S.gems+=n; toast("+"+n+" gems (simulated)"); save(); openShop("gems"); };
+window.iapPass=()=>{ S.battlePass=true; toast("Battle Pass active!"); save(); openShop("gems"); };
+window.iapAds=()=>{ S.removeAds=true; toast("Ads removed!"); save(); openShop("gems"); };
+
+/* ===== leaderboard ===== */
+const BOTS=["NovaDrill","MoleKing","DeepDan","Seismo","CoreDiver","RiftRat","Borya","LodeStar","Karat","EchoMiner","DustDevil","Magma","TunnelRat","Gemini"];
+window.openRank=function(){ const day=Math.floor(Date.now()/864e5);
+ const list=BOTS.map(n=>{ const r=mulberry32((hashStr(n)*31+day)>>>0); return {n, d:Math.round(Math.max(40,(S.best||120)*(0.4+r()*2.1)+r()*60))}; });
+ list.push({n:"You", d:S.best, me:true}); list.sort((a,b)=>b.d-a.d);
+ const med=["#ffd24a","#c0c8d8","#cd8b4f"];
+ openModal(X+`<div class="m-title">Deepest Divers</div><div class="m-sub">Resets weekly • depth is pure skill</div>`+
+  list.map((e,i)=>`<div class="row"><div class="rank" style="${i<3?'color:'+med[i]:''}">${i+1}</div>
+   <div class="info"><div class="nm">${e.me?"<span style='color:#7ad7ff'>You</span>":e.n}</div></div>
+   <b>${e.d}m</b></div>`).join("")); };
+
+/* ===== settings ===== */
+window.openSettings=function(){ openModal(X+`<div class="m-title">Settings</div><div class="m-sub">Deep Dive</div>
+  <div class="row"><div class="info"><div class="nm">Haptics</div><div class="sb">Vibration feedback</div></div>
+   <button class="buy" onclick="S.haptics=!S.haptics;save();openSettings()">${S.haptics?"On":"Off"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Restore Purchases</div></div><button class="buy" onclick="toast('Restored')">Restore</button></div>
+  <div class="stat-row" style="margin-top:10px"><span>Total dives</span><b>${S.runs}</b></div>
+  <div class="stat-row"><span>Best depth</span><b>${S.best}m</b></div>`); };
+
+document.getElementById("m-shop").innerHTML=IC.bag()+"Garage";
+document.getElementById("m-rank").innerHTML=IC.trophy()+"Ranks";
+document.getElementById("m-set").innerHTML=IC.gear();
+document.getElementById("m-shop").addEventListener("click",()=>openShop());
+document.getElementById("m-rank").addEventListener("click",openRank);
+document.getElementById("m-set").addEventListener("click",openSettings);
+
+/* ===== daily ===== */
+(function(){ const today=new Date().toDateString();
+ if(S.daily.last!==today){ const yest=new Date(Date.now()-864e5).toDateString();
+  S.daily.streak=S.daily.last===yest?S.daily.streak+1:1; S.daily.last=today;
+  const g=Math.min(5+3*S.daily.streak,40)+(S.battlePass?20:0); S.gems+=g;
+  setTimeout(()=>announce("DAILY +"+g+" GEMS","#ffd24a"),700); save(); } })();
+
+/* ===== loop ===== */
+let last=performance.now();
+function loop(t){ const dt=clamp((t-last)/1000,0,0.04); last=t; update(dt); draw(); hud(); requestAnimationFrame(loop); }
+window.addEventListener("resize",()=>{ resize(); if(mode==="menu") drill.x=W/2; });
+resize(); drill.x=W/2; resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
 requestAnimationFrame(loop);
 </script>
 </body>
