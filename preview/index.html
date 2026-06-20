@@ -37,14 +37,21 @@
     border:1px solid rgba(255,255,255,.12); white-space:nowrap; }
   #ctrlhint b { color:#7ad7ff; }
   #rankbadge { font-size:12px; font-weight:900; margin-top:4px; letter-spacing:.5px; }
-  #slowbtn { position:absolute; top:calc(env(safe-area-inset-top,8px) + 64px); left:50%; transform:translateX(-50%);
-    z-index:11; display:none; align-items:center; gap:7px; padding:8px 16px; border-radius:999px; cursor:pointer;
-    background:rgba(20,40,80,.75); backdrop-filter:blur(8px); border:1px solid rgba(120,200,255,.5);
-    color:#cfe8ff; font-weight:900; font-size:14px; box-shadow:0 2px 14px rgba(60,140,255,.4); }
-  #slowbtn svg { width:18px; height:18px; }
-  #slowbtn.active { background:rgba(60,140,255,.9); color:#fff; animation:slowpulse .6s ease-in-out infinite alternate; }
-  #slowbtn.cant { opacity:.45; }
-  @keyframes slowpulse { from{transform:translateX(-50%) scale(1)} to{transform:translateX(-50%) scale(1.07)} }
+  #slowbtn { position:absolute; top:calc(env(safe-area-inset-top,8px) + 58px); left:50%; margin-left:-40px;
+    width:80px; height:80px; border-radius:50%; z-index:11; display:none; cursor:pointer;
+    flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    background:radial-gradient(circle at 50% 38%, rgba(70,140,235,.85), rgba(18,40,86,.9));
+    border:2px solid rgba(140,210,255,.7); color:#eaf6ff; font-weight:900; }
+  #slowbtn .ic svg { width:30px; height:30px; }
+  #slowbtn .cost { font-size:12px; display:flex; align-items:center; gap:3px; line-height:1; }
+  #slowbtn .cost svg { width:12px; height:12px; }
+  #slowbtn.ready { animation:breathe 2.4s ease-in-out infinite; }
+  #slowbtn.active { background:radial-gradient(circle at 50% 38%, rgba(110,180,255,1), rgba(40,100,210,1));
+    border-color:#cfeaff; animation:breathe .7s ease-in-out infinite; }
+  #slowbtn.cant { opacity:.5; animation:none; }
+  @keyframes breathe {
+    0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(80,160,255,.55), 0 2px 16px rgba(60,140,255,.5); }
+    50%     { transform:scale(1.09); box-shadow:0 0 0 12px rgba(80,160,255,0), 0 2px 26px rgba(60,140,255,.7); } }
 
   /* Start screen */
   #start { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -583,9 +590,9 @@ function hud(){
  // slow-mo button
  const sb=document.getElementById("slowbtn");
  if(mode==="playing"){ sb.style.display="flex";
-  if(slowmoT>0){ sb.className="active"; sb.innerHTML=IC.slow("#fff")+"SLOW-MO "+Math.ceil(slowmoT)+"s"; }
-  else if(slowCdT>0){ sb.className="cant"; sb.innerHTML=IC.slow()+"COOLDOWN "+Math.ceil(slowCdT)+"s"; }
-  else { const c=slowCostNow(); sb.className=S.gems>=c?"":"cant"; sb.innerHTML=IC.slow()+IC.gem()+c; }
+  if(slowmoT>0){ sb.className="active"; sb.innerHTML=`<div class="ic">${IC.slow("#fff")}</div><div class="cost">${Math.ceil(slowmoT)}s</div>`; }
+  else if(slowCdT>0){ sb.className="cant"; sb.innerHTML=`<div class="ic">${IC.slow()}</div><div class="cost">${Math.ceil(slowCdT)}s</div>`; }
+  else { const c=slowCostNow(); sb.className=S.gems>=c?"ready":"cant"; sb.innerHTML=`<div class="ic">${IC.slow()}</div><div class="cost">${IC.gem()}${c}</div>`; }
  } else sb.style.display="none";
 }
 
