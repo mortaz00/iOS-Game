@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Deep Dive — Endless Faller</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+  html, body { height:100%; background:#05050d; overflow:hidden; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; display:flex; justify-content:center; }
+  #game { position:relative; width:100%; max-width:440px; height:100vh; height:100dvh; overflow:hidden; background:#05060f; }
+  canvas { position:absolute; inset:0; touch-action:none; }
+
+  /* HUD */
+  #hud { position:absolute; top:env(safe-area-inset-top,8px); left:0; right:0; padding:10px 14px 0;
+    display:flex; justify-content:space-between; align-items:flex-start; z-index:10; pointer-events:none; }
+  #dist { font-size:40px; font-weight:900; color:#fff; line-height:1; text-shadow:0 2px 10px rgba(0,0,0,.6); }
+  #dist small { font-size:18px; font-weight:800; opacity:.7; }
+  #best { font-size:12px; font-weight:700; color:#7ad7ff; margin-top:3px; }
+  .pill { display:flex; align-items:center; gap:6px; padding:7px 12px; border-radius:999px;
+    background:rgba(10,12,24,.6); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.09);
+    color:#fff; font-weight:800; font-size:15px; pointer-events:auto; }
+  .pill svg { width:16px; height:16px; }
+  #combo { position:absolute; top:33%; left:50%; transform:translateX(-50%); z-index:10; pointer-events:none;
+    font-weight:900; font-size:22px; color:#ffd54a; text-shadow:0 0 16px rgba(255,170,20,.9); opacity:0; }
+  #combo.show { opacity:1; transition:opacity .1s; }
+  #announce { position:absolute; top:40%; left:50%; z-index:12; pointer-events:none;
+    font-size:30px; font-weight:900; text-align:center; opacity:0; white-space:nowrap;
+    text-shadow:0 0 24px currentColor, 0 2px 6px #000; }
+  #announce.show { animation:annc 1.7s ease-out forwards; }
+  @keyframes annc { 0%{opacity:0;transform:translate(-50%,-50%) scale(.5)} 15%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}
+    30%{transform:translate(-50%,-50%) scale(1)} 78%{opacity:1} 100%{opacity:0;transform:translate(-50%,-85%) scale(1.05)} }
+  #ctrlhint { position:absolute; bottom:14%; left:50%; transform:translateX(-50%); z-index:11; pointer-events:none;
+    display:none; text-align:center; color:#fff; font-weight:800; font-size:15px;
+    background:rgba(10,12,24,.6); backdrop-filter:blur(6px); padding:10px 18px; border-radius:14px;
+    border:1px solid rgba(255,255,255,.12); white-space:nowrap; }
+  #ctrlhint b { color:#7ad7ff; }
+  #rankbadge { font-size:12px; font-weight:900; margin-top:4px; letter-spacing:.5px; }
+  #slowbtn { position:absolute; top:calc(env(safe-area-inset-top,8px) + 58px); left:50%; margin-left:-40px;
+    width:80px; height:80px; border-radius:50%; z-index:11; display:none; cursor:pointer;
+    flex-direction:column; align-items:center; justify-content:center; gap:1px;
+    background:radial-gradient(circle at 50% 38%, rgba(70,140,235,.85), rgba(18,40,86,.9));
+    border:2px solid rgba(140,210,255,.7); color:#eaf6ff; font-weight:900; }
+  #slowbtn .ic svg { width:30px; height:30px; }
+  #slowbtn .cost { font-size:12px; display:flex; align-items:center; gap:3px; line-height:1; }
+  #slowbtn .cost svg { width:12px; height:12px; }
+  #slowbtn.ready { animation:breathe 2.4s ease-in-out infinite; }
+  #slowbtn.active { background:radial-gradient(circle at 50% 38%, rgba(110,180,255,1), rgba(40,100,210,1));
+    border-color:#cfeaff; animation:breathe .7s ease-in-out infinite; }
+  #slowbtn.cant { opacity:.5; animation:none; }
+  @keyframes breathe {
+    0%,100% { transform:scale(1); box-shadow:0 0 0 0 rgba(80,160,255,.55), 0 2px 16px rgba(60,140,255,.5); }
+    50%     { transform:scale(1.09); box-shadow:0 0 0 12px rgba(80,160,255,0), 0 2px 26px rgba(60,140,255,.7); } }
+
+  /* Start screen */
+  #start { position:absolute; inset:0; z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; text-align:center; padding:24px; }
+  #start.hide { display:none; }
+  #start h1 { font-size:42px; font-weight:900; color:#fff; letter-spacing:1px;
+    background:linear-gradient(#7ad7ff,#b06bff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  #start .tagline { color:#8d93b8; font-size:14px; margin-top:-6px; }
+  #taptodive { margin-top:8px; padding:16px 40px; border-radius:18px; font-size:20px; font-weight:900; color:#fff;
+    background:linear-gradient(135deg,#19c3ff,#7b5cff); box-shadow:0 8px 34px rgba(80,120,255,.5);
+    animation:bob 1.1s ease-in-out infinite alternate; border:none; cursor:pointer; }
+  @keyframes bob { from{transform:translateY(0)} to{transform:translateY(-8px)} }
+  #start .hint { color:#667; font-size:12.5px; max-width:260px; line-height:1.5; }
+  .menu-row { display:flex; gap:10px; margin-top:6px; }
+  .menu-btn { padding:11px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.12); cursor:pointer;
+    background:rgba(255,255,255,.06); color:#fff; font-weight:800; font-size:13px; display:flex; align-items:center; gap:6px; }
+  .menu-btn svg { width:16px; height:16px; }
+
+  /* Modals */
+  #modal { position:absolute; inset:0; z-index:40; background:rgba(0,0,5,.62); backdrop-filter:blur(3px);
+    display:flex; align-items:flex-end; opacity:0; pointer-events:none; transition:opacity .2s; }
+  #modal.open { opacity:1; pointer-events:auto; }
+  #card { width:100%; max-height:82%; overflow-y:auto; border-radius:24px 24px 0 0; padding:22px 16px 30px;
+    background:linear-gradient(180deg,#171a2e,#0e1020); border-top:1px solid rgba(255,255,255,.12); color:#fff;
+    transform:translateY(40px); transition:transform .22s; }
+  #modal.open #card { transform:translateY(0); }
+  .m-title { font-size:24px; font-weight:900; text-align:center; }
+  .m-sub { font-size:12.5px; color:#8d93b8; text-align:center; margin-bottom:14px; }
+  .m-close { position:sticky; top:0; float:right; width:30px; height:30px; border-radius:50%; border:none;
+    background:rgba(255,255,255,.1); color:#aab; font-size:15px; cursor:pointer; }
+  .big-num { font-size:54px; font-weight:900; text-align:center; margin:6px 0;
+    background:linear-gradient(#7ad7ff,#b06bff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .stat-row { display:flex; justify-content:space-between; font-size:14px; padding:7px 4px; color:#cfd3e8; }
+  .stat-row b { color:#fff; }
+  .cta { display:flex; flex-direction:column; align-items:center; gap:2px; width:100%; border:none; border-radius:16px;
+    padding:15px; margin-top:9px; cursor:pointer; font-weight:900; font-size:16px; color:#fff;
+    background:linear-gradient(135deg,#19c3ff,#7b5cff); box-shadow:0 6px 24px rgba(80,120,255,.4); }
+  .cta .s { font-size:11.5px; font-weight:700; opacity:.9; }
+  .cta.ad { background:linear-gradient(135deg,#ff9d3f,#ff5e62); box-shadow:0 6px 24px rgba(255,94,98,.35); }
+  .cta.alt { background:rgba(255,255,255,.09); box-shadow:none; }
+  .cta:disabled { filter:grayscale(.7); opacity:.5; }
+  .tabs { display:flex; gap:6px; margin:4px 0 14px; }
+  .tab { flex:1; padding:9px; border-radius:12px; border:none; cursor:pointer; font-weight:800; font-size:12px;
+    background:rgba(255,255,255,.06); color:#8d93b8; }
+  .tab.on { background:linear-gradient(135deg,#19c3ff,#7b5cff); color:#fff; }
+  .row { display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:16px;
+    background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.07); margin-bottom:9px; }
+  .row .info { flex:1; min-width:0; }
+  .row .nm { font-weight:800; font-size:14px; }
+  .row .sb { font-size:11.5px; color:#8d93b8; margin-top:2px; }
+  .buy { border:none; border-radius:999px; padding:9px 14px; font-weight:800; font-size:13px; color:#fff;
+    background:linear-gradient(135deg,#2ecc71,#1ca35a); cursor:pointer; min-width:76px;
+    display:flex; align-items:center; justify-content:center; gap:5px; }
+  .buy svg { width:13px; height:13px; }
+  .buy.gems { background:linear-gradient(135deg,#ff5f9e,#d63a78); }
+  .buy.iap { background:linear-gradient(135deg,#3a8bff,#2a64d8); }
+  .buy:disabled { background:rgba(255,255,255,.12); color:#778; }
+  .rank { width:26px; text-align:center; font-weight:900; color:#8d93b8; }
+
+  /* Ad overlay */
+  #ad { position:absolute; inset:0; z-index:60; background:rgba(2,2,8,.96); display:none;
+    flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#fff; text-align:center; }
+  #ad .ring { width:84px; height:84px; border-radius:50%; border:4px solid rgba(255,255,255,.15);
+    border-top-color:#ff9d3f; animation:spin 1s linear infinite; }
+  @keyframes spin { to{transform:rotate(360deg)} }
+  #ad .note { color:#667; font-size:11.5px; max-width:240px; }
+  #toast { position:absolute; top:calc(env(safe-area-inset-top,8px) + 70px); left:50%; transform:translateX(-50%);
+    background:rgba(20,24,40,.95); border:1px solid rgba(255,255,255,.14); color:#fff; font-weight:700; font-size:13px;
+    padding:9px 16px; border-radius:999px; z-index:55; display:none; white-space:nowrap; }
+</style>
+</head>
+<body>
+<div id="game">
+  <canvas id="cv"></canvas>
+
+  <div id="hud">
+    <div>
+      <div id="dist">0<small>m</small></div>
+      <div id="best"></div>
+      <div id="rankbadge"></div>
+    </div>
+    <div class="pill" id="gem-pill"></div>
+  </div>
+  <button id="slowbtn"></button>
+  <div id="combo"></div>
+  <div id="announce"></div>
+  <div id="ctrlhint">Press &amp; <b>HOLD</b> = steer ►&nbsp;&nbsp;|&nbsp;&nbsp;<b>LET GO</b> = steer ◄</div>
+
+  <div id="start">
+    <h1>DEEP DIVE</h1>
+    <div class="tagline">how deep can you fall?</div>
+    <button id="taptodive">TAP TO DIVE</button>
+    <div class="hint">Hold to steer <b>right</b>, release to drift <b>left</b>. Dodge the walls and spikes. It only gets faster.</div>
+    <div class="menu-row">
+      <button class="menu-btn" id="m-shop"></button>
+      <button class="menu-btn" id="m-rank"></button>
+      <button class="menu-btn" id="m-set"></button>
+    </div>
+  </div>
+
+  <div id="modal"><div id="card"></div></div>
+  <div id="ad"><div class="ring"></div><div style="font-size:18px;font-weight:800">Simulated ad &bull; <span id="ad-s">3</span>s</div><div class="note">The iOS build plays a real rewarded video here (AdMob).</div></div>
+  <div id="toast"></div>
+</div>
+
+<script>
+"use strict";
+window.addEventListener("error",e=>{ const d=document.createElement("div");
+  d.style.cssText="position:fixed;top:0;left:0;right:0;z-index:9999;background:#a00;color:#fff;font:12px monospace;padding:8px;white-space:pre-wrap";
+  d.textContent="Error: "+(e.message||e.type)+(e.filename?" @"+e.lineno:""); document.body.appendChild(d); });
+if(location.search.indexOf("reset")>-1){ try{localStorage.removeItem("gm-dive");}catch(e){} location.replace(location.pathname); }
+
+/* ===== helpers ===== */
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rand=(a,b)=>a+Math.random()*(b-a);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const nowS=()=>Date.now()/1000;
+const SUF=["","K","M","B"];
+function fmt(n){ if(n<1000) return Math.round(n)+""; let i=0; while(n>=1000&&i<SUF.length-1){n/=1000;i++;}
+  return n.toFixed(n>=100?0:1)+SUF[i]; }
+function dur(s){ s=Math.max(0,Math.floor(s)); if(s>=3600)return Math.floor(s/3600)+"h "+Math.floor(s%3600/60)+"m";
+  if(s>=60)return Math.floor(s/60)+"m "+(s%60)+"s"; return s+"s"; }
+function hashStr(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+/* ===== icons ===== */
+const IC={
+gem:c=>`<svg viewBox="0 0 24 24"><path d="M12 2L21 9.5 12 22 3 9.5z" fill="${c||'#ff5f9e'}"/><path d="M12 2l3.5 7.5L12 22 8.5 9.5z" fill="rgba(255,255,255,.35)"/></svg>`,
+bag:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#7ad7ff'}" stroke-width="2" stroke-linecap="round"><path d="M5 8h14l-1.2 12a2 2 0 01-2 1.8H8.2a2 2 0 01-2-1.8L5 8z"/><path d="M8.5 10V6.5a3.5 3.5 0 017 0V10"/></svg>`,
+trophy:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#ffd24a'}" stroke-width="2" stroke-linecap="round"><path d="M8 4h8v5a4 4 0 01-8 0z"/><path d="M8 5H4.5a3.5 3.5 0 003.5 5M16 5h3.5a3.5 3.5 0 01-3.5 5"/><path d="M12 13v4M8 21h8M10 17h4v4h-4z"/></svg>`,
+gear:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#8d93b8'}" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke-linecap="round"/></svg>`,
+play:c=>`<svg viewBox="0 0 24 24"><path d="M7 4l13 8-13 8z" fill="${c||'#fff'}"/></svg>`,
+slow:c=>`<svg viewBox="0 0 24 24" fill="none" stroke="${c||'#cfe8ff'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12M6 21h12M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9"/></svg>`,
+};
+
+/* ===== characters (skins) ===== */
+const SKINS=[
+ {id:"rookie",  name:"Rookie",        cost:0,    type:"human",    body:"#3a7bd5", skinTone:"#ffcc9a", hair:"#5b3a2a"},
+ {id:"robot",   name:"Robo-Diver",    cost:150,  type:"robot",    body:"#9aa6b8", accent:"#5cd6ff"},
+ {id:"skeleton",name:"Rattlebones",   cost:300,  type:"skeleton", body:"#1a1a22", accent:"#eef2f5"},
+ {id:"neon",    name:"Neon Bot",      cost:450,  type:"neon",     body:"#10101a", accent:"#19f0ff", glow:"#19f0ff"},
+ {id:"ninja",   name:"Shadow Ninja",  cost:650,  type:"ninja",    body:"#1b1d2a", accent:"#ff3b5c"},
+ {id:"astro",   name:"Astronaut",     cost:850,  type:"astro",    body:"#eef2f7", accent:"#ff9d3f"},
+ {id:"alien",   name:"Little Green",  cost:1100, type:"alien",    body:"#5fd17a", accent:"#1f6b3a", glow:"#7dff9b"},
+ {id:"ghost",   name:"Phantom",       cost:1400, type:"ghost",    body:"#dbe6ff", accent:"#9bb8ff", glow:"#bcd4ff"},
+ {id:"magma",   name:"Magma Golem",   cost:1900, type:"magma",    body:"#2a1410", accent:"#ff6a2c", glow:"#ff6a2c"},
+ {id:"gold",    name:"Gold Royale",   cost:3200, type:"gold",     body:"#ffe27a", accent:"#b8841f", glow:"#ffd24a"},
+];
+const skinById=id=>SKINS.find(s=>s.id===id)||SKINS[0];
+const skinTint=sk=>sk.glow||sk.accent||"#7ad7ff";
+
+/* ===== state / save ===== */
+let S={ gems:30, best:0, runs:0, skin:"rookie", skins:["rookie"],
+        shieldLvl:0, magnetLvl:0, removeAds:false, battlePass:false, haptics:true, sound:true,
+        daily:{last:0,streak:0} };
+try{ const r=JSON.parse(localStorage.getItem("gm-dive")||"{}"); S={...S,...r,skins:r.skins||["rookie"],daily:{...S.daily,...(r.daily||{})}}; }catch(e){}
+// keep only valid skin ids (drops old drill ids from earlier saves)
+S.skins=(S.skins||[]).filter(id=>SKINS.some(s=>s.id===id));
+if(!S.skins.includes("rookie")) S.skins.unshift("rookie");
+if(!S.skins.includes(S.skin)) S.skin="rookie";
+const save=()=>{ try{localStorage.setItem("gm-dive",JSON.stringify(S));}catch(e){} };
+
+const BAL={
+ baseSpeed:200, speedGain:0.55, speedCap:620,   // descent px/s vs depth(m) — gentle ramp
+ steer:235,                                     // lateral steer speed (smoothed, predictable)
+ steerEase:0.0009,                              // lower = snappier toward target
+ sliceH:16, baseHalf:168, halfShrink:0.012, minHalf:62,
+ wideUntil:75,                                  // first 75m stay wide & spike-free (tutorial)
+ spikeBase:0.004, spikeGain:0.000015,           // spike spawn chance per slice
+ gemChance:0.07, nearMiss:13,
+ drillR:14, pxPerM:7,                           // 7 world px = 1 meter of depth
+ slowCost:15, slowDur:5, slowFactor:0.4, slowCd:30,  // slow-mo: base gems, seconds, factor, cooldown
+ shieldFromLvl:l=>l,                            // hits absorbed at run start
+ shieldCost:l=>Math.round(120*Math.pow(2.2,l)),
+ magnetCost:l=>Math.round(100*Math.pow(2.3,l)),
+};
+// Ranks = the maps. Each is a distinct high-contrast theme so walls and
+// reefs read instantly against the falling character.
+const RANKS=[
+ {m:0,     name:"Rookie",     bg:["#0b1226","#05080f"], wall:"#2b4a7e", edge:"#8fb6ff", spike:"#ff4d4d"},
+ {m:2500,  name:"Wood",       bg:["#1d1308","#0b0703"], wall:"#7a5026", edge:"#e2a55a", spike:"#ff5a2c"},
+ {m:5000,  name:"Bronze",     bg:["#211204","#0d0702"], wall:"#a05f22", edge:"#ffbf6b", spike:"#ff3b3b"},
+ {m:8000,  name:"Silver",     bg:["#0f151c","#06090e"], wall:"#7c8ea3", edge:"#eef4ff", spike:"#ff4d6a"},
+ {m:12000, name:"Gold",       bg:["#1f1804","#0d0a02"], wall:"#b08e1f", edge:"#ffe27a", spike:"#ff5a2c"},
+ {m:17000, name:"Platinum",   bg:["#07201e","#03100e"], wall:"#2fa096", edge:"#86f6ea", spike:"#ff4d8a"},
+ {m:23000, name:"Diamond",    bg:["#0a1838","#050c1c"], wall:"#3f6ae0", edge:"#a6d6ff", spike:"#ff4d9a"},
+ {m:30000, name:"Challenger", bg:["#1c0824","#0e0414"], wall:"#8a36c4", edge:"#ecaaff", spike:"#ff3b6b"},
+];
+function rankAt(m){ let r=RANKS[0]; for(const x of RANKS) if(m>=x.m) r=x; return r; }
+function rankIndex(m){ let i=0; for(let k=0;k<RANKS.length;k++) if(m>=RANKS[k].m) i=k; return i; }
+// gem revive cost triples every 1000m: 50, 150, 450, ...
+const reviveGemCost=m=>Math.round(50*Math.pow(3, Math.max(1,Math.floor(m/1000))-1));
+
+/* ===== canvas ===== */
+const cv=document.getElementById("cv"), ctx=cv.getContext("2d");
+let W=0,H=0,dpr=1,DRILLY=0;
+function resize(){ const g=document.getElementById("game"); W=g.clientWidth; H=g.clientHeight;
+ dpr=Math.min(window.devicePixelRatio||1,2); cv.width=W*dpr; cv.height=H*dpr;
+ cv.style.width=W+"px"; cv.style.height=H+"px"; ctx.setTransform(dpr,0,0,dpr,0,0); DRILLY=H*0.3; }
+
+/* ===== world generation ===== */
+let slices=[], genIdx=0, genCx=0, genHalf=0, genSpike=null;
+function resetWorld(){ slices=[]; genIdx=0; genCx=W/2; genHalf=BAL.baseHalf; genSpike=null; }
+function genTo(idx){
+ while(genIdx<=idx){
+  const m=genIdx*BAL.sliceH/BAL.pxPerM;
+  let half=Math.max(BAL.minHalf, BAL.baseHalf - m*BAL.halfShrink) + Math.sin(genIdx*0.05)*14;
+  // gentle, wide opening for the first stretch so players learn the controls
+  if(m<BAL.wideUntil) half=Math.max(half, BAL.baseHalf*0.96);
+  genHalf=lerp(genHalf,half,0.2);
+  // tunnel meanders less early on, more later
+  genCx+=rand(-1,1)*(m<BAL.wideUntil?1.2:Math.min(6, 2+m*0.015));
+  genCx=clamp(genCx, genHalf+8, W-genHalf-8);
+  let li=0,ri=0;
+  if(!genSpike && m>BAL.wideUntil && Math.random()<BAL.spikeBase+m*BAL.spikeGain){
+   genSpike={side:Math.random()<0.5?-1:1, len:rand(28, Math.min(genHalf*1.3, 130)), span:Math.floor(rand(3,6)), i:0};
+  }
+  if(genSpike){ const t=genSpike.i/(genSpike.span); const prof=Math.sin(t*Math.PI);
+   const inset=genSpike.len*prof; if(genSpike.side<0) li=inset; else ri=inset;
+   genSpike.i++; if(genSpike.i>genSpike.span) genSpike=null; }
+  let gem=null;
+  if(!li&&!ri&&m>10&&Math.random()<BAL.gemChance){ gem={x:genCx+rand(-1,1)*(genHalf-20), taken:false}; }
+  slices[genIdx]={cx:genCx, half:genHalf, li, ri, gem};
+  genIdx++;
+ }
+}
+function sliceAt(worldY){ const i=Math.floor(worldY/BAL.sliceH); if(i<0) return slices[0]||{cx:W/2,half:BAL.baseHalf,li:0,ri:0}; genTo(i); return slices[i]; }
+
+/* ===== run state ===== */
+let mode="menu";  // menu | playing | dead
+let drill={x:W/2, vx:0, y:0, tilt:0};
+let speed=0, depthM=0, runGems=0, combo=0, comboT=0, shields=0, usedAdRevive=false, paidRevives=0;
+let holding=false, shake=0, invuln=0, hintT=0, slowmoT=0, slowUses=0, slowCdT=0, lastRank=0;
+function slowCostNow(){ return BAL.slowCost*Math.pow(10,slowUses); }   // 15, 150, 1500, ... per run
+const parts=[], trail=[], pops=[];
+let beatBest=false;
+
+function startRun(){
+ document.getElementById("start").classList.add("hide");
+ resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
+ drill={x:W/2, vx:0, y:0, tilt:0};
+ speed=BAL.baseSpeed; depthM=0; runGems=0; combo=0; comboT=0;
+ shields=BAL.shieldFromLvl(S.shieldLvl); usedAdRevive=false; paidRevives=0; invuln=1.4; shake=0;
+ beatBest=false; lastRank=0; slowmoT=0; slowUses=0; slowCdT=0; hintT=S.runs<4?7:3;   // hint longer for new players
+ parts.length=trail.length=pops.length=0;
+ mode="playing"; holding=false;
+ initAudio(); resumeAudio();
+ S.runs++; save();
+}
+function die(){
+ if(invuln>0) return;
+ if(shields>0){ shields--; invuln=1.0; shake=12; haptic(30); SFX.shield(); sparkBurst(drill.x,DRILLY,"#7ad7ff",24); announce("SHIELD!","#7ad7ff"); return; }
+ mode="dead"; shake=20; haptic(60); SFX.crash();
+ for(let i=0;i<40;i++) parts.push({x:drill.x,y:DRILLY,vx:rand(-260,260),vy:rand(-320,120),life:rand(.5,1.1),max:1.1,size:rand(2,6),col:Math.random()<.5?"#ffb14a":"#888"});
+ if(depthM>S.best){ S.best=Math.floor(depthM); }
+ save();
+ setTimeout(showDeath,650);
+}
+function revive(sec){
+ const sl=sliceAt(drill.y); drill.x=sl.cx; drill.vx=0; invuln=sec||5; slowmoT=0;
+ // clear spikes just ahead so revive isn't instant death
+ for(let i=0;i<slices.length;i++){ if(slices[i]&&Math.abs(i*BAL.sliceH-drill.y)<H*0.7){ slices[i].li=0; slices[i].ri=0; } }
+ SFX.revive(); announce("REVIVED!","#7dffa8"); mode="playing"; closeModal();
+}
+
+/* ===== input ===== */
+cv.addEventListener("pointerdown",e=>{ initAudio(); resumeAudio(); if(mode==="playing"){ holding=true; } });
+window.addEventListener("pointerup",()=>{ holding=false; });
+window.addEventListener("pointercancel",()=>{ holding=false; });
+document.getElementById("taptodive").addEventListener("click",startRun);
+window.addEventListener("keydown",e=>{ if(e.code==="Space"){ if(mode==="menu")startRun(); else holding=true; e.preventDefault(); } });
+window.addEventListener("keyup",e=>{ if(e.code==="Space") holding=false; });
+
+/* ===== effects ===== */
+function haptic(ms){ if(S.haptics&&navigator.vibrate) navigator.vibrate(ms); }
+
+/* ===== sound (procedural WebAudio — no files) ===== */
+let actx=null;
+function initAudio(){ if(actx) return; try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
+function resumeAudio(){ if(actx&&actx.state==="suspended") actx.resume(); }
+function beep(freq,d,type,vol,sweep){ if(!actx||!S.sound) return; const t=actx.currentTime;
+ const o=actx.createOscillator(), g=actx.createGain(); o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
+ if(sweep) o.frequency.exponentialRampToValueAtTime(Math.max(1,sweep),t+d);
+ g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol||0.18,t+0.012);
+ g.gain.exponentialRampToValueAtTime(0.0001,t+d); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+d+0.03); }
+function noise(d,vol){ if(!actx||!S.sound) return; const t=actx.currentTime; const len=Math.floor(actx.sampleRate*d);
+ const b=actx.createBuffer(1,len,actx.sampleRate), data=b.getChannelData(0);
+ for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len);
+ const s=actx.createBufferSource(); s.buffer=b; const g=actx.createGain(); g.gain.value=vol||0.3;
+ s.connect(g); g.connect(actx.destination); s.start(t); }
+function arp(notes,step,type,vol){ notes.forEach((f,i)=>setTimeout(()=>beep(f,0.18,type||"square",vol||0.18),i*(step||90))); }
+const SFX={
+ gem:()=>beep(900,0.1,"triangle",0.16,1500),
+ near:()=>beep(320,0.14,"sawtooth",0.1,1000),
+ crash:()=>{ noise(0.45,0.32); beep(180,0.45,"sawtooth",0.22,38); },
+ shield:()=>beep(680,0.22,"square",0.2,420),
+ slow:()=>beep(760,0.5,"sine",0.22,150),
+ rankup:()=>arp([523,659,784,1047],95,"square",0.2),
+ best:()=>arp([784,988,1318],100,"triangle",0.2),
+ revive:()=>arp([392,523,659,880],80,"sine",0.2),
+ ui:()=>beep(540,0.05,"square",0.1),
+};
+function sparkBurst(x,y,col,n){ for(let i=0;i<n;i++){ const a=rand(0,7),s=rand(40,200);
+  parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rand(.3,.7),max:.7,size:rand(1.5,3.5),col}); } }
+function pop(x,y,txt,col){ pops.push({x,y,txt,col,life:.9}); }
+function announce(txt,col){ const a=document.getElementById("announce"); a.textContent=txt; a.style.color=col||"#fff";
+  a.classList.remove("show"); void a.offsetWidth; a.classList.add("show"); }
+
+/* ===== update ===== */
+function update(dt){
+ if(mode!=="playing"){ shake=Math.max(0,shake-dt*30); return; }
+ // difficulty (speed, narrowing) keyed to actual world depth — stays fair
+ const worldDepth=drill.y/BAL.pxPerM;
+ speed=Math.min(BAL.speedCap, BAL.baseSpeed+worldDepth*BAL.speedGain);
+ if(slowmoT>0) slowmoT-=dt;
+ if(slowCdT>0) slowCdT-=dt;
+ const eff=slowmoT>0?speed*BAL.slowFactor:speed;   // slow-mo eases the scroll...
+ drill.y+=eff*dt;
+ depthM+=speed*dt/BAL.pxPerM;                       // ...but meters still bank at full speed
+ // lateral steer speed scales with how fast you're falling — faster fall,
+ // faster (and snappier) sideways movement
+ const spd=speed/BAL.baseSpeed;                         // 1.0 at start, grows with depth
+ const steer=BAL.steer*(0.85+0.35*spd);
+ const ease=Math.max(0.00003, BAL.steerEase/spd);       // snappier reaction at speed
+ const targetVx=holding?steer:-steer;
+ drill.vx=lerp(drill.vx, targetVx, 1-Math.pow(ease,dt));
+ drill.x+=drill.vx*dt;
+ drill.tilt=lerp(drill.tilt, drill.vx/steer*0.5, 0.25);
+ if(invuln>0) invuln-=dt;
+ if(hintT>0) hintT-=dt;
+ // trail
+ trail.push({x:drill.x,y:DRILLY,life:.5}); if(trail.length>22) trail.shift();
+ // collision with current slice
+ const sl=sliceAt(drill.y);
+ const leftPass=sl.cx-sl.half+sl.li+BAL.drillR;
+ const rightPass=sl.cx+sl.half-sl.ri-BAL.drillR;
+ if(drill.x<leftPass){ drill.x=leftPass; die(); }
+ else if(drill.x>rightPass){ drill.x=rightPass; die(); }
+ else if(invuln<=0){
+  // near-miss reward
+  const clr=Math.min(drill.x-leftPass, rightPass-drill.x);
+  if(clr<BAL.nearMiss){ if(Math.random()<dt*30){ combo++; comboT=nowS(); SFX.near();
+    sparkBurst(drill.x,DRILLY,"#ffd54a",4); if(combo%5===0) announce("NEAR MISS x"+combo+"!","#ffd54a"); } }
+ }
+ // gems (with magnet)
+ const magR=40+S.magnetLvl*34;
+ for(let i=Math.floor((drill.y-H)/BAL.sliceH); i<Math.floor((drill.y+H)/BAL.sliceH); i++){
+  const s=slices[i]; if(!s||!s.gem||s.gem.taken) continue;
+  const gy=DRILLY+(i*BAL.sliceH-drill.y);
+  if(S.magnetLvl>0 && Math.abs(gy-DRILLY)<magR && Math.abs(s.gem.x-drill.x)<magR) s.gem.x=lerp(s.gem.x,drill.x,0.25);
+  if(Math.abs(gy-DRILLY)<BAL.drillR+10 && Math.abs(s.gem.x-drill.x)<BAL.drillR+12){
+   s.gem.taken=true; const mult=1+Math.min(combo,10)*0.5; const g=Math.round(1*mult);
+   runGems+=g; pop(drill.x,DRILLY-20,"+"+g,"#ff5f9e"); sparkBurst(s.gem.x,gy,"#ff5f9e",10); haptic(8); SFX.gem();
+  }
+ }
+ // combo decay
+ if(combo>0 && nowS()-comboT>1.4) combo=0;
+ // rank-up (each rank is a new map)
+ const ri=rankIndex(depthM); if(ri>lastRank){ lastRank=ri; announce("RANK: "+RANKS[ri].name.toUpperCase(),RANKS[ri].edge); haptic(35); SFX.rankup(); shake=8; }
+ // personal best
+ if(!beatBest && S.best>0 && depthM>S.best){ beatBest=true; announce("NEW BEST!","#ffd24a"); haptic(40); SFX.best(); }
+ shake=Math.max(0,shake-dt*30);
+ // particles
+ for(let i=parts.length-1;i>=0;i--){ const p=parts[i]; p.life-=dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=600*dt; if(p.life<=0) parts.splice(i,1); }
+ for(let i=pops.length-1;i>=0;i--){ pops[i].life-=dt*1.1; if(pops[i].life<=0) pops.splice(i,1); }
+}
+
+/* ===== render ===== */
+function draw(){
+ const sx=shake>.2?rand(-shake,shake):0, sy=shake>.2?rand(-shake,shake):0;
+ ctx.setTransform(dpr,0,0,dpr,sx*dpr,sy*dpr);
+ const rk=rankAt(depthM);
+ const bg=ctx.createLinearGradient(0,0,0,H); bg.addColorStop(0,rk.bg[0]); bg.addColorStop(1,rk.bg[1]);
+ ctx.fillStyle=bg; ctx.fillRect(-20,-20,W+40,H+40);
+ // speed lines
+ const sp=speed/BAL.speedCap;
+ ctx.strokeStyle="rgba(255,255,255,"+(0.04+sp*0.07)+")"; ctx.lineWidth=2;
+ for(let i=0;i<10;i++){ const lx=((i*53+ (drill.y*0.5))%W); const ll=20+sp*60;
+  ctx.beginPath(); ctx.moveTo(lx,(i*70+ (drill.y* (1+sp))%H)%H); ctx.lineTo(lx,((i*70+(drill.y*(1+sp))%H)%H)+ll); ctx.stroke(); }
+
+ const top=drill.y-DRILLY, i0=Math.floor(top/BAL.sliceH)-1, i1=Math.floor((top+H)/BAL.sliceH)+1;
+ genTo(i1+2);
+ const yOf=i=>DRILLY+(i*BAL.sliceH-drill.y);
+ // walls — bright rank colour, filled toward the SAFE inner edge (no spike inset),
+ // so the dark gap reads clearly and reefs sit on top in danger colour
+ ctx.fillStyle=rk.wall;
+ ctx.beginPath(); ctx.moveTo(0,-20); ctx.lineTo(0,H+20);
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; ctx.lineTo(s.cx-s.half,yOf(i)); }
+ ctx.lineTo(0,-20); ctx.closePath(); ctx.fill();
+ ctx.beginPath(); ctx.moveTo(W,-20); ctx.lineTo(W,H+20);
+ for(let i=i1;i>=i0;i--){ const s=slices[i]; if(!s) continue; ctx.lineTo(s.cx+s.half,yOf(i)); }
+ ctx.lineTo(W,-20); ctx.closePath(); ctx.fill();
+ // bright high-contrast inner edge
+ ctx.strokeStyle=rk.edge; ctx.lineWidth=3.5; ctx.shadowColor=rk.edge; ctx.shadowBlur=8;
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const x=s.cx-s.half; i===i0?ctx.moveTo(x,yOf(i)):ctx.lineTo(x,yOf(i));} ctx.stroke();
+ ctx.beginPath(); for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const x=s.cx+s.half; i===i0?ctx.moveTo(x,yOf(i)):ctx.lineTo(x,yOf(i));} ctx.stroke();
+ ctx.shadowBlur=0;
+ // reefs (spikes) — bright danger-coloured teeth jutting into the tunnel
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s)continue; const y=yOf(i);
+  if(s.li>3){ ctx.fillStyle=rk.spike; ctx.beginPath();
+   ctx.moveTo(s.cx-s.half,y); ctx.lineTo(s.cx-s.half+s.li,y+BAL.sliceH*0.5); ctx.lineTo(s.cx-s.half,y+BAL.sliceH); ctx.closePath(); ctx.fill();
+   ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=1; ctx.stroke(); }
+  if(s.ri>3){ ctx.fillStyle=rk.spike; ctx.beginPath();
+   ctx.moveTo(s.cx+s.half,y); ctx.lineTo(s.cx+s.half-s.ri,y+BAL.sliceH*0.5); ctx.lineTo(s.cx+s.half,y+BAL.sliceH); ctx.closePath(); ctx.fill();
+   ctx.strokeStyle="rgba(255,255,255,.7)"; ctx.lineWidth=1; ctx.stroke(); } }
+ // gems
+ for(let i=i0;i<=i1;i++){ const s=slices[i]; if(!s||!s.gem||s.gem.taken)continue; drawGem(s.gem.x,yOf(i),7,"#ff5f9e"); }
+ // best line
+ if(S.best>0 && mode==="playing"){ const by=DRILLY+(S.best-depthM)*BAL.pxPerM; if(by>-20&&by<H+20){
+  ctx.strokeStyle="rgba(255,210,74,.6)"; ctx.lineWidth=2; ctx.setLineDash([8,6]);
+  ctx.beginPath(); ctx.moveTo(0,by); ctx.lineTo(W,by); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle="#ffd24a"; ctx.font="800 11px sans-serif"; ctx.textAlign="left"; ctx.fillText("BEST "+S.best+"m",6,by-4); } }
+ // trail
+ for(let i=0;i<trail.length;i++){ const t=trail[i]; ctx.globalAlpha=(i/trail.length)*0.35;
+  ctx.fillStyle=skinTint(skinById(S.skin)); ctx.beginPath(); ctx.arc(t.x,t.y,2.5+ i*0.18,0,7); ctx.fill(); }
+ ctx.globalAlpha=1;
+ // character
+ if(mode!=="dead"){
+  ctx.save();
+  if(invuln>0&&Math.floor(invuln*12)%2) ctx.globalAlpha=0.5;
+  if(shields>0){ ctx.strokeStyle="rgba(122,215,255,.85)"; ctx.lineWidth=2.5; ctx.shadowColor="#7ad7ff"; ctx.shadowBlur=10;
+   ctx.beginPath(); ctx.arc(drill.x,DRILLY,23,0,7); ctx.stroke(); ctx.shadowBlur=0; }
+  drawFaller(ctx, drill.x, DRILLY, 34, drill.tilt, skinById(S.skin), performance.now()/1000);
+  ctx.restore();
+ }
+ // particles
+ for(const p of parts){ ctx.globalAlpha=clamp(p.life/p.max,0,1); ctx.fillStyle=p.col;
+  ctx.fillRect(p.x-p.size/2,p.y-p.size/2,p.size,p.size); }
+ ctx.globalAlpha=1;
+ // pops
+ for(const p of pops){ ctx.globalAlpha=clamp(p.life,0,1); ctx.font="900 16px sans-serif"; ctx.textAlign="center";
+  ctx.fillStyle=p.col; ctx.fillText(p.txt,p.x,p.y-(0.9-p.life)*40); }
+ ctx.globalAlpha=1; ctx.textAlign="left";
+ // slow-mo tint
+ if(slowmoT>0){ const a=0.10+0.04*Math.sin(performance.now()/120);
+  ctx.fillStyle="rgba(90,170,255,"+a+")"; ctx.fillRect(-20,-20,W+40,H+40);
+  ctx.strokeStyle="rgba(120,200,255,.5)"; ctx.lineWidth=4; ctx.strokeRect(2,2,W-4,H-4); }
+}
+function drawGem(x,y,r,col){ ctx.save(); ctx.translate(x,y); ctx.shadowColor=col; ctx.shadowBlur=10;
+ ctx.beginPath(); ctx.moveTo(0,-r); ctx.lineTo(r*.8,-r*.2); ctx.lineTo(r*.5,r); ctx.lineTo(-r*.5,r); ctx.lineTo(-r*.8,-r*.2); ctx.closePath();
+ ctx.fillStyle=col; ctx.fill(); ctx.restore(); }
+function rrect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r);
+ c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+function limb(c,x1,y1,x2,y2,w,col){ c.strokeStyle=col; c.lineWidth=w; c.lineCap="round";
+ c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.stroke(); }
+
+// Falling character — viewed front-on in a skydive pose. Shared by the
+// live game and the shop preview thumbnails. `t` drives limb flutter.
+function drawFaller(c,x,y,s,tilt,sk,t){
+ c.save(); c.translate(x,y); c.rotate(tilt*0.7);
+ if(sk.glow){ c.shadowColor=sk.glow; c.shadowBlur=13; }
+ const fl=Math.sin(t*9)*0.14*s;
+ const ghost=sk.type==="ghost";
+ const lc=(sk.type==="skeleton"||sk.type==="neon")?sk.accent:sk.body;
+ if(ghost) c.globalAlpha=0.82;
+ // arms (up & out) and legs (down & out)
+ limb(c,-s*0.15,-s*0.07,-s*0.33,-s*0.3-fl,s*0.10,lc);
+ limb(c, s*0.15,-s*0.07, s*0.33,-s*0.3+fl,s*0.10,lc);
+ if(!ghost){ limb(c,-s*0.09,s*0.14,-s*0.18,s*0.42+fl,s*0.11,lc);
+             limb(c, s*0.09,s*0.14, s*0.18,s*0.42-fl,s*0.11,lc); }
+ // torso
+ c.fillStyle=(sk.type==="neon")?"#0c0c14":sk.body;
+ rrect(c,-s*0.17,-s*0.12,s*0.34,s*0.34,s*0.1); c.fill();
+ if(sk.type==="neon"){ c.strokeStyle=sk.accent; c.lineWidth=2; rrect(c,-s*0.17,-s*0.12,s*0.34,s*0.34,s*0.1); c.stroke(); }
+ if(ghost){ c.fillStyle=sk.body; c.beginPath(); c.moveTo(-s*0.17,s*0.08); c.lineTo(-s*0.17,s*0.3);
+   for(let i=0;i<4;i++) c.lineTo(-s*0.17+(i+0.5)*s*0.085, s*0.3+(i%2?-1:1)*s*0.05);
+   c.lineTo(s*0.17,s*0.3); c.lineTo(s*0.17,s*0.08); c.closePath(); c.fill(); }
+ if(sk.type==="skeleton"){ c.strokeStyle=sk.accent; c.lineWidth=1.4;
+   for(let i=0;i<3;i++){ const yy=-s*0.04+i*s*0.08; c.beginPath(); c.moveTo(-s*0.1,yy); c.lineTo(s*0.1,yy); c.stroke(); }
+   c.beginPath(); c.moveTo(0,-s*0.08); c.lineTo(0,s*0.16); c.stroke(); }
+ if(sk.type==="magma"){ c.strokeStyle=sk.accent; c.lineWidth=1.6;
+   c.beginPath(); c.moveTo(-s*0.1,-s*0.08); c.lineTo(-s*0.02,s*0.02); c.lineTo(-s*0.08,s*0.16); c.stroke();
+   c.beginPath(); c.moveTo(s*0.1,-s*0.04); c.lineTo(s*0.03,s*0.07); c.stroke(); }
+ if(sk.type==="astro"){ c.fillStyle=sk.accent; c.fillRect(-s*0.17,-s*0.02,s*0.34,s*0.05); }
+ if(sk.type==="robot"){ c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1; c.beginPath(); c.moveTo(0,-s*0.1); c.lineTo(0,s*0.2); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(0,s*0.02,s*0.035,0,7); c.fill(); }
+ if(sk.type==="gold"){ c.fillStyle="rgba(255,255,255,.5)"; c.fillRect(-s*0.12,-s*0.08,s*0.035,s*0.24); }
+ if(sk.type==="ninja"){ c.fillStyle=sk.accent; c.fillRect(-s*0.17,s*0.02,s*0.34,s*0.04);
+   c.strokeStyle=sk.accent; c.lineWidth=s*0.055; c.lineCap="round";
+   c.beginPath(); c.moveTo(s*0.1,-s*0.1); c.quadraticCurveTo(s*0.34,0, s*0.42,-s*0.18+Math.sin(t*6)*s*0.06); c.stroke(); }
+ // head
+ const hr=s*0.17, hy=-s*0.28;
+ if(sk.type==="robot"){ c.fillStyle=sk.body; rrect(c,-hr,hy-hr,hr*2,hr*2,s*0.04); c.fill();
+   c.strokeStyle="rgba(0,0,0,.3)"; c.lineWidth=1; rrect(c,-hr,hy-hr,hr*2,hr*2,s*0.04); c.stroke();
+   c.strokeStyle=sk.body; c.lineWidth=2; c.beginPath(); c.moveTo(0,hy-hr); c.lineTo(0,hy-hr-s*0.12); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(0,hy-hr-s*0.14,s*0.035,0,7); c.fill();
+   c.fillStyle=sk.accent; c.fillRect(-hr*0.7,hy-s*0.02,hr*1.4,s*0.05); }
+ else if(sk.type==="skeleton"){ c.fillStyle=sk.accent; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#111"; c.beginPath(); c.arc(-hr*0.4,hy-hr*0.05,hr*0.27,0,7); c.arc(hr*0.4,hy-hr*0.05,hr*0.27,0,7); c.fill();
+   c.beginPath(); c.moveTo(0,hy+hr*0.15); c.lineTo(-hr*0.12,hy+hr*0.42); c.lineTo(hr*0.12,hy+hr*0.42); c.closePath(); c.fill(); }
+ else if(sk.type==="alien"){ c.fillStyle=sk.body; c.beginPath(); c.ellipse(0,hy,hr*1.05,hr*1.3,0,0,7); c.fill();
+   c.fillStyle="#06120a"; c.beginPath(); c.ellipse(-hr*0.45,hy,hr*0.3,hr*0.52,0.4,0,7); c.ellipse(hr*0.45,hy,hr*0.3,hr*0.52,-0.4,0,7); c.fill(); }
+ else if(sk.type==="astro"){ c.fillStyle="#fff"; c.beginPath(); c.arc(0,hy,hr*1.1,0,7); c.fill();
+   c.fillStyle="#1b2a44"; c.beginPath(); c.arc(0,hy,hr*0.82,0,7); c.fill();
+   c.fillStyle="rgba(255,255,255,.55)"; c.beginPath(); c.arc(-hr*0.3,hy-hr*0.3,hr*0.2,0,7); c.fill(); }
+ else if(sk.type==="ghost"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#3a4a6a"; c.beginPath(); c.arc(-hr*0.35,hy,hr*0.22,0,7); c.arc(hr*0.35,hy,hr*0.22,0,7); c.fill(); }
+ else if(sk.type==="ninja"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#f0d8b0"; c.fillRect(-hr,hy-hr*0.22,hr*2,hr*0.46);
+   c.fillStyle="#111"; c.fillRect(-hr*0.55,hy-hr*0.06,hr*0.4,hr*0.14); c.fillRect(hr*0.15,hy-hr*0.06,hr*0.4,hr*0.14); }
+ else if(sk.type==="neon"){ c.fillStyle="#0c0c14"; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.strokeStyle=sk.accent; c.lineWidth=2; c.beginPath(); c.arc(0,hy,hr,0,7); c.stroke();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(-hr*0.4,hy-hr*0.05,hr*0.17,0,7); c.arc(hr*0.4,hy-hr*0.05,hr*0.17,0,7); c.fill(); }
+ else if(sk.type==="magma"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle=sk.accent; c.beginPath(); c.arc(-hr*0.35,hy,hr*0.16,0,7); c.arc(hr*0.35,hy,hr*0.16,0,7); c.fill(); }
+ else if(sk.type==="gold"){ c.fillStyle=sk.body; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle="#111"; c.beginPath(); c.arc(-hr*0.32,hy,hr*0.12,0,7); c.arc(hr*0.32,hy,hr*0.12,0,7); c.fill();
+   c.fillStyle=sk.glow; c.beginPath(); c.moveTo(-hr,hy-hr*0.9); c.lineTo(-hr,hy-hr*1.5); c.lineTo(-hr*0.5,hy-hr*1.1);
+   c.lineTo(0,hy-hr*1.6); c.lineTo(hr*0.5,hy-hr*1.1); c.lineTo(hr,hy-hr*1.5); c.lineTo(hr,hy-hr*0.9); c.closePath(); c.fill(); }
+ else { c.fillStyle=sk.skinTone||"#ffcc9a"; c.beginPath(); c.arc(0,hy,hr,0,7); c.fill();
+   c.fillStyle=sk.hair||"#5b3a2a"; c.beginPath(); c.arc(0,hy-hr*0.2,hr,Math.PI*1.05,Math.PI*1.95); c.fill();
+   c.fillStyle="#222"; c.beginPath(); c.arc(-hr*0.35,hy+hr*0.05,hr*0.13,0,7); c.arc(hr*0.35,hy+hr*0.05,hr*0.13,0,7); c.fill(); }
+ c.restore();
+}
+// Pre-rendered shop thumbnails so you see the real character before buying.
+const _thumbs={};
+function skinThumb(sk){ if(_thumbs[sk.id]) return _thumbs[sk.id];
+ const tc=document.createElement("canvas"); tc.width=tc.height=96; const c=tc.getContext("2d");
+ c.translate(48,52); drawFaller(c,0,0,58,0,sk,0); _thumbs[sk.id]=tc.toDataURL(); return _thumbs[sk.id]; }
+
+/* ===== HUD ===== */
+const elDist=document.getElementById("dist"), elBest=document.getElementById("best"),
+      elGem=document.getElementById("gem-pill"), elCombo=document.getElementById("combo");
+function hud(){
+ elDist.innerHTML=Math.floor(depthM)+"<small>m</small>";
+ elBest.textContent=S.best>0?("BEST "+S.best+"m"):"";
+ elGem.innerHTML=IC.gem()+"<span>"+(S.gems+ (mode==="playing"?runGems:0))+"</span>";
+ if(combo>=2){ elCombo.textContent="x"+(1+Math.min(combo,10)*0.5).toFixed(1)+" GEMS"; elCombo.classList.add("show"); }
+ else elCombo.classList.remove("show");
+ document.getElementById("hud").style.opacity=mode==="menu"?0:1;
+ document.getElementById("ctrlhint").style.display=(mode==="playing"&&hintT>0)?"block":"none";
+ // rank badge
+ const rb=document.getElementById("rankbadge"), rk=rankAt(depthM);
+ if(mode==="playing"){ rb.textContent=rk.name.toUpperCase(); rb.style.color=rk.edge; } else rb.textContent="";
+ // slow-mo button
+ const sb=document.getElementById("slowbtn");
+ if(mode==="playing"){ sb.style.display="flex";
+  if(slowmoT>0){ sb.className="active"; sb.innerHTML=`<div class="ic">${IC.slow("#fff")}</div><div class="cost">${Math.ceil(slowmoT)}s</div>`; }
+  else if(slowCdT>0){ sb.className="cant"; sb.innerHTML=`<div class="ic">${IC.slow()}</div><div class="cost">${Math.ceil(slowCdT)}s</div>`; }
+  else { const c=slowCostNow(); sb.className=S.gems>=c?"ready":"cant"; sb.innerHTML=`<div class="ic">${IC.slow()}</div><div class="cost">${IC.gem()}${c}</div>`; }
+ } else sb.style.display="none";
+}
+
+/* ===== ads ===== */
+let adBusy=false;
+function watchAd(cb){ if(S.battlePass){ cb(); save(); return; } if(adBusy) return; adBusy=true; holding=false;
+ const ov=document.getElementById("ad"); ov.style.display="flex"; let n=3; document.getElementById("ad-s").textContent=n;
+ const iv=setInterval(()=>{ n--; if(n<=0){ clearInterval(iv); ov.style.display="none"; adBusy=false; cb(); save(); }
+  else document.getElementById("ad-s").textContent=n; },1000); }
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.style.display="block";
+ clearTimeout(t._h); t._h=setTimeout(()=>t.style.display="none",1800); }
+
+/* ===== modals ===== */
+const modal=document.getElementById("modal"), card=document.getElementById("card");
+function openModal(html,locked){ card.innerHTML=html; modal.classList.add("open"); modal._lock=!!locked; }
+function closeModal(){ modal.classList.remove("open"); if(mode==="dead"){ /* stays dead until restart */ } }
+modal.addEventListener("pointerdown",e=>{ if(e.target===modal&&!modal._lock) closeModal(); });
+const X='<button class="m-close" onclick="closeModal()">✕</button>';
+
+function showDeath(){
+ // revive cost = depth base × 3 for each paid revive already used this run (escalates per use)
+ const earned=runGems, gemCost=reviveGemCost(depthM)*Math.pow(3,paidRevives);
+ window._collect=m=>{ S.gems+=earned*m; save(); endRunToMenu(); };
+ window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
+ window._reviveAd=()=>watchAd(()=>{ usedAdRevive=true; revive(5); });   // 5s invincibility, free, first only
+ window._reviveGem=()=>{ if(S.gems<gemCost) return; S.gems-=gemCost; paidRevives++; save(); revive(4); };
+ // special offer: buy EXACTLY this revive's gem cost, then revive. Price is the
+ // discounted store value, hard-capped at $9.99 so a revive never exceeds $10.
+ window._buyReviveGems=()=>{ S.gems+=gemCost; SFX.gem(); save(); _reviveGem(); };
+ const canAfford=S.gems>=gemCost;
+ const price=Math.min(9.99, Math.max(0.99, Math.ceil(gemCost*0.008*0.9)-0.01)).toFixed(2);
+ const reviveBtn = !usedAdRevive
+   ? `<button class="cta ad" onclick="_reviveAd()">REVIVE — watch ad<span class="s">5s invincibility, keep your run</span></button>`
+   : `<button class="cta" ${canAfford?"":"disabled"} onclick="_reviveGem()">REVIVE — ${gemCost} gems<span class="s">${canAfford?"4s invincibility":"you have "+S.gems+" gems"}</span></button>`;
+ // discounted gem offer on every revive level, auto-matched to this revive's cost (max $10)
+ const offer = `<button class="cta ad" onclick="_buyReviveGems()">Buy ${gemCost} gems &amp; revive — $${price}<span class="s">exact revive cost • instant</span></button>`;
+ openModal(`
+  <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"Splat!"}</div>
+  <div class="m-sub">${rankAt(depthM).name} zone • run #${S.runs}</div>
+  <div class="big-num">${Math.floor(depthM)}m</div>
+  <div class="stat-row"><span>Best</span><b>${S.best}m</b></div>
+  <div class="stat-row"><span>Gems this run</span><b>${earned}</b></div>
+  ${reviveBtn}
+  ${offer}
+  ${earned>0?`<button class="cta ad" onclick="_collectAd()">Collect ${earned*2} gems — watch ad</button>`:""}
+  <button class="cta alt" onclick="_collect(1)">Dive again${earned>0?" (+"+earned+" gems)":""}</button>`,true);
+}
+function endRunToMenu(){ runGems=0; mode="menu"; closeModal(); document.getElementById("start").classList.remove("hide"); }
+
+/* ===== shop ===== */
+let shopTab="skins";
+function shopSkins(){ return SKINS.map(k=>{ const owned=S.skins.includes(k.id), on=S.skin===k.id;
+  const sw=`<img src="${skinThumb(k)}" style="width:44px;height:44px" alt="${k.name}">`;
+  const btn=on?`<button class="buy" disabled>Equipped</button>`:owned?`<button class="buy" onclick="equip('${k.id}')">Equip</button>`
+   :`<button class="buy gems" ${S.gems>=k.cost?"":"disabled"} onclick="buySkin('${k.id}')">${IC.gem("#fff")}${k.cost}</button>`;
+  return `<div class="row">${sw}<div class="info"><div class="nm">${k.name}</div><div class="sb">${on?"Equipped":owned?"Owned":"Character skin"}</div></div>${btn}</div>`; }).join(""); }
+function shopUpgrades(){ const sc=BAL.shieldCost(S.shieldLvl), mc=BAL.magnetCost(S.magnetLvl);
+ return `
+  <div class="row"><div class="info"><div class="nm">Start Shield • Lv ${S.shieldLvl}</div><div class="sb">Begin each run absorbing ${S.shieldLvl} hit${S.shieldLvl===1?"":"s"}</div></div>
+   <button class="buy gems" ${S.gems>=sc?"":"disabled"} onclick="buyUp('shield')">${IC.gem("#fff")}${sc}</button></div>
+  <div class="row"><div class="info"><div class="nm">Gem Magnet • Lv ${S.magnetLvl}</div><div class="sb">Pull nearby gems toward you</div></div>
+   <button class="buy gems" ${S.gems>=mc?"":"disabled"} onclick="buyUp('magnet')">${IC.gem("#fff")}${mc}</button></div>`; }
+function shopGems(){ return `
+  <div class="row"><div class="info"><div class="nm">Battle Pass</div><div class="sb">${S.battlePass?"Active — no ads, instant rewards":"No ads • +25% gems • monthly"}</div></div>
+   <button class="buy iap" ${S.battlePass?"disabled":""} onclick="iapPass()">${S.battlePass?"Active":"$7.99"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Remove Ads</div><div class="sb">Keep optional rewarded ads</div></div>
+   <button class="buy iap" ${S.removeAds?"disabled":""} onclick="iapAds()">${S.removeAds?"Owned":"$4.99"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Pouch of Gems</div><div class="sb">200 gems</div></div><button class="buy iap" onclick="iapGems(200)">$1.99</button></div>
+  <div class="row"><div class="info"><div class="nm">Chest of Gems</div><div class="sb">1200 gems • best value</div></div><button class="buy iap" onclick="iapGems(1200)">$7.99</button></div>`; }
+window.openShop=function(t){ if(t)shopTab=t; const tb=(id,l)=>`<button class="tab ${shopTab===id?"on":""}" onclick="openShop('${id}')">${l}</button>`;
+ openModal(X+`<div class="m-title">Wardrobe</div><div class="m-sub">Spend gems • purchases simulated in this prototype</div>
+  <div class="tabs">${tb("skins","CHARACTERS")}${tb("upgrades","UPGRADES")}${tb("gems","GEMS")}</div>
+  ${shopTab==="skins"?shopSkins():shopTab==="upgrades"?shopUpgrades():shopGems()}`); };
+window.buySkin=id=>{ const k=skinById(id); if(S.gems<k.cost||S.skins.includes(id))return; S.gems-=k.cost; S.skins.push(id); S.skin=id; save(); openShop("skins"); };
+window.equip=id=>{ if(S.skins.includes(id)){ S.skin=id; save(); openShop("skins"); } };
+window.buyUp=k=>{ if(k==="shield"){ const c=BAL.shieldCost(S.shieldLvl); if(S.gems<c)return; S.gems-=c; S.shieldLvl++; }
+ else { const c=BAL.magnetCost(S.magnetLvl); if(S.gems<c)return; S.gems-=c; S.magnetLvl++; } save(); openShop("upgrades"); };
+window.iapGems=n=>{ S.gems+=n; toast("+"+n+" gems (simulated)"); save(); openShop("gems"); };
+window.iapPass=()=>{ S.battlePass=true; toast("Battle Pass active!"); save(); openShop("gems"); };
+window.iapAds=()=>{ S.removeAds=true; toast("Ads removed!"); save(); openShop("gems"); };
+
+/* ===== leaderboard ===== */
+const BOTS=["NovaDrill","MoleKing","DeepDan","Seismo","CoreDiver","RiftRat","Borya","LodeStar","Karat","EchoMiner","DustDevil","Magma","TunnelRat","Gemini"];
+window.openRank=function(){ const day=Math.floor(Date.now()/864e5);
+ const list=BOTS.map(n=>{ const r=mulberry32((hashStr(n)*31+day)>>>0); return {n, d:Math.round(Math.max(40,(S.best||120)*(0.4+r()*2.1)+r()*60))}; });
+ list.push({n:"You", d:S.best, me:true}); list.sort((a,b)=>b.d-a.d);
+ const med=["#ffd24a","#c0c8d8","#cd8b4f"];
+ openModal(X+`<div class="m-title">Deepest Divers</div><div class="m-sub">Resets weekly • depth is pure skill</div>`+
+  list.map((e,i)=>`<div class="row"><div class="rank" style="${i<3?'color:'+med[i]:''}">${i+1}</div>
+   <div class="info"><div class="nm">${e.me?"<span style='color:#7ad7ff'>You</span>":e.n}</div></div>
+   <b>${e.d}m</b></div>`).join("")); };
+
+/* ===== settings ===== */
+window.openSettings=function(){ openModal(X+`<div class="m-title">Settings</div><div class="m-sub">Deep Dive</div>
+  <div class="row"><div class="info"><div class="nm">Sound FX</div><div class="sb">In-game sound effects</div></div>
+   <button class="buy" onclick="S.sound=!S.sound;save();SFX.ui();openSettings()">${S.sound?"On":"Off"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Haptics</div><div class="sb">Vibration feedback</div></div>
+   <button class="buy" onclick="S.haptics=!S.haptics;save();openSettings()">${S.haptics?"On":"Off"}</button></div>
+  <div class="row"><div class="info"><div class="nm">Restore Purchases</div></div><button class="buy" onclick="toast('Restored')">Restore</button></div>
+  <div class="stat-row" style="margin-top:10px"><span>Total dives</span><b>${S.runs}</b></div>
+  <div class="stat-row"><span>Best depth</span><b>${S.best}m</b></div>`); };
+
+document.getElementById("m-shop").innerHTML=IC.bag()+"Wardrobe";
+document.getElementById("m-rank").innerHTML=IC.trophy()+"Ranks";
+document.getElementById("m-set").innerHTML=IC.gear();
+document.getElementById("m-shop").addEventListener("click",()=>openShop());
+document.getElementById("m-rank").addEventListener("click",openRank);
+document.getElementById("m-set").addEventListener("click",openSettings);
+function activateSlow(){ if(mode!=="playing"||slowmoT>0) return;
+ if(slowCdT>0){ toast("Slow-mo on cooldown"); SFX.ui(); return; }
+ const cost=slowCostNow();
+ if(S.gems<cost){ toast("Need "+cost+" gems"); SFX.ui(); return; }
+ S.gems-=cost; slowUses++; slowmoT=BAL.slowDur; slowCdT=BAL.slowCd;
+ SFX.slow(); haptic(20); announce("SLOW-MO","#7ad7ff"); save(); }
+document.getElementById("slowbtn").addEventListener("pointerdown",e=>{ e.stopPropagation(); activateSlow(); });
+
+/* ===== daily ===== */
+(function(){ const today=new Date().toDateString();
+ if(S.daily.last!==today){ const yest=new Date(Date.now()-864e5).toDateString();
+  S.daily.streak=S.daily.last===yest?S.daily.streak+1:1; S.daily.last=today;
+  const g=Math.min(5+3*S.daily.streak,40)+(S.battlePass?20:0); S.gems+=g;
+  setTimeout(()=>announce("DAILY +"+g+" GEMS","#ffd24a"),700); save(); } })();
+
+/* ===== loop ===== */
+let last=performance.now();
+function loop(t){ const dt=clamp((t-last)/1000,0,0.04); last=t; update(dt); draw(); hud(); requestAnimationFrame(loop); }
+window.addEventListener("resize",()=>{ resize(); if(mode==="menu") drill.x=W/2; });
+resize(); drill.x=W/2; resetWorld(); genTo(Math.ceil(H/BAL.sliceH)+2);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
