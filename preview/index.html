@@ -618,16 +618,16 @@ function showDeath(){
  window._collectAd=()=>watchAd(()=>{ S.gems+=earned*2; toast("Gems doubled!"); endRunToMenu(); });
  window._reviveAd=()=>watchAd(()=>{ usedAdRevive=true; revive(5); });   // 5s invincibility
  window._reviveGem=()=>{ if(S.gems<gemCost) return; S.gems-=gemCost; save(); revive(4); };
- // special offer: buy EXACTLY this revive's gem cost at 10% off the store rate, then revive
+ // special offer: buy EXACTLY this revive's gem cost at 10% off the store rate, then revive.
+ // Recomputed every death, so it always matches the current revive cost on every revive level.
  window._buyReviveGems=()=>{ S.gems+=gemCost; SFX.gem(); save(); _reviveGem(); };
  const canAfford=S.gems>=gemCost;
  const price=Math.max(0.99, Math.ceil(gemCost*0.008*0.9)-0.01).toFixed(2);
  const reviveBtn = !usedAdRevive
    ? `<button class="cta ad" onclick="_reviveAd()">REVIVE — watch ad<span class="s">5s invincibility, keep your run</span></button>`
    : `<button class="cta" ${canAfford?"":"disabled"} onclick="_reviveGem()">REVIVE — ${gemCost} gems<span class="s">${canAfford?"4s invincibility":"you have "+S.gems+" gems"}</span></button>`;
- // tailored discount offer only when they can't afford the gem revive
- const offer = (usedAdRevive && !canAfford)
-   ? `<button class="cta ad" onclick="_buyReviveGems()">Buy ${gemCost} gems &amp; revive — $${price}<span class="s">exact revive cost • 10% off store</span></button>` : "";
+ // discounted gem offer on every revive level, auto-matched to this revive's cost
+ const offer = `<button class="cta ad" onclick="_buyReviveGems()">Buy ${gemCost} gems &amp; revive — $${price}<span class="s">exact revive cost • 10% off store</span></button>`;
  openModal(`
   <div class="m-title">${depthM>=S.best&&beatBest?"NEW RECORD!":"Splat!"}</div>
   <div class="m-sub">${rankAt(depthM).name} zone • run #${S.runs}</div>
