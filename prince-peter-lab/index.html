@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#e8e3d8">
+  <title>Prince Peter Lab — Coffee & Brunch</title>
+  <meta name="description" content="Royal roasted coffee, cookies and breakfast bites at Prince Peter Lab in Glyfada.">
+  <link rel="canonical" href="https://mortaz00.github.io/iOS-Game/prince-peter-lab/">
+  <link rel="icon" href="https://prince-peter-lab.mortaz.chatgpt.site/images/prince-crown.png">
+  <meta property="og:title" content="Prince Peter Lab — Coffee & Brunch">
+  <meta property="og:description" content="Your daily ritual, crowned. Royal roasted coffee, cookies and breakfast bites in Glyfada.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mortaz00.github.io/iOS-Game/prince-peter-lab/">
+  <meta property="og:image" content="https://prince-peter-lab.mortaz.chatgpt.site/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Prince Peter Lab — Coffee & Brunch">
+  <meta name="twitter:description" content="Your daily ritual, crowned.">
+  <meta name="twitter:image" content="https://prince-peter-lab.mortaz.chatgpt.site/og.png">
+  <style>
+    :root{color-scheme:light;--paper:#e8e3d8;--ink:#171717}
+    *{box-sizing:border-box}
+    html,body{width:100%;height:100%;margin:0;overflow:hidden;background:var(--paper)}
+    body{font-family:Arial,Helvetica,sans-serif}
+    iframe{position:fixed;inset:0;width:100%;height:100vh;height:100dvh;border:0;background:var(--paper);opacity:0;transition:opacity .45s ease}
+    .splash{position:fixed;inset:0;z-index:2;display:grid;place-items:center;padding:max(24px,env(safe-area-inset-top)) 24px max(24px,env(safe-area-inset-bottom));background:var(--paper);color:var(--ink);transition:opacity .4s ease,visibility .4s ease}
+    .brand{text-align:center}
+    .crown{width:42px;height:42px;margin:0 auto 18px}
+    .brand strong{display:block;font-size:clamp(27px,6vw,42px);line-height:.84;letter-spacing:.13em}
+    .brand span{display:block;margin-top:17px;font-size:10px;font-weight:700;letter-spacing:.28em;text-transform:uppercase}
+    .rule{width:44px;height:2px;margin:26px auto 0;background:var(--ink);animation:pulse 1.1s ease-in-out infinite}
+    .ready iframe{opacity:1}
+    .ready .splash{opacity:0;visibility:hidden}
+    @keyframes pulse{50%{width:92px;opacity:.35}}
+    @media(prefers-reduced-motion:reduce){iframe,.splash{transition:none}.rule{animation:none}}
+  </style>
+</head>
+<body>
+  <div class="splash" aria-live="polite">
+    <div class="brand">
+      <svg class="crown" aria-hidden="true" viewBox="0 0 48 48" fill="none"><path d="M7 12v26h34V12L31 22 24 10l-7 12L7 12Z" stroke="currentColor" stroke-width="3.4"/></svg>
+      <strong>PRINCE<br>PETER</strong>
+      <span>Royal roasted coffee · Glyfada</span>
+      <i class="rule"></i>
+    </div>
+  </div>
+  <iframe
+    src="https://prince-peter-lab.mortaz.chatgpt.site"
+    title="Prince Peter Lab — Coffee & Brunch"
+    allow="fullscreen; clipboard-write"
+    onload="document.documentElement.classList.add('ready')"
+  ></iframe>
+</body>
+</html>
